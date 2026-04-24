@@ -1,29 +1,41 @@
 # FocalFlow
 
-FocalFlow is an open-source Chrome extension that transforms any webpage into a distraction-free reader mode and then lets you toggle seamlessly into a Rapid Serial Visual Presentation (RSVP) speed-reading mode with Optimal Recognition Point (ORP) highlighting. By combining a clean full-screen article view with an efficient, single-word stream, FocalFlow helps you read faster without sacrificing comprehension.
+FocalFlow is a Chrome extension focused on extraction-first reading. Phase 2 establishes the minimal architecture for clean article parsing and a reader-mode shell, leaving RSVP playback for a later phase.
 
-## Key Features
+## Current Phase
 
-- **Article extraction:** Uses a robust parsing engine to strip away ads, navigation, and clutter, leaving just the core article content.
-- **Reader mode:** Presents the article in a full-screen, distraction-free view with adjustable fonts and themes.
-- **RSVP speed reading:** Streams words one at a time with ORP highlighting for reduced eye movement. Adjustable words-per-minute and punctuation-aware pauses let you customize your pace.
-- **Seamless toggle:** Switch between reader mode and RSVP mode at the same position in the article, preserving your place and progress.
-- **Open-source friendly:** Built with careful attention to third-party licensing and extension safety.
+- Extract the active page into article data using Mozilla Readability.
+- Open a full-screen reader shell populated from extracted headings and paragraphs.
+- Keep permissions narrow: only `activeTab` and `scripting`.
+- Avoid copying implementation code from the reference import during this phase.
+
+## Project Structure
+
+- `manifest.json`: MV3 extension entry point.
+- `src/popup/`: popup UI that injects the extraction runtime on demand.
+- `src/content/`: extraction, reader shell, and runtime wiring.
+- `src/vendor/Readability.js`: vendored upstream parser source.
+- `licenses/`: third-party license text and attribution notes.
+
+## Loading the Extension
+
+1. Open `chrome://extensions/`.
+2. Enable Developer mode.
+3. Choose Load unpacked.
+4. Select this repository root.
+
+The popup opens the reader shell on the active tab when page extraction succeeds.
 
 ## Contributing
 
 Contributions are welcome. Please open an issue or pull request to discuss ideas, report bugs, or suggest improvements.
 
-## Acknowledgements
-
-FocalFlow draws on established ideas in reader-mode extraction and RSVP-style speed reading while pursuing a reader-first architecture.
-
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+This project is licensed under the MIT License. See `LICENSE`.
 
 ### Third-Party Components
 
-- Readability.js (MPL-2.0) – article content extraction
+- Readability.js (Apache-2.0) for article content extraction.
 
-All third-party components are used in compliance with their respective licenses.
+Third-party attribution lives in `licenses/THIRD_PARTY_NOTICES.md`, and the vendored Readability license text is preserved in `licenses/Readability-LICENSE.md`.

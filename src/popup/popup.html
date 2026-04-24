@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FocalFlow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="popup">
+    <section id="main-view" class="popup-view">
+      <h1>FocalFlow</h1>
+      <p class="summary">Open a lightweight reader shell built from extracted article content.</p>
+      <div class="entry-actions">
+        <button id="open-focused-reading" type="button">Focused Reading</button>
+        <button id="open-rsvp-reading" type="button">RSVP Reading</button>
+      </div>
+      <button id="open-preferences" type="button" class="secondary-button">Preferences</button>
+    </section>
+    <section id="preferences-view" class="popup-view" hidden>
+      <div class="view-header">
+        <button id="back-to-main" type="button" class="ghost-button">Back</button>
+        <p class="eyebrow">Preferences</p>
+      </div>
+      <h1>Reading Settings</h1>
+      <p class="summary">Saved defaults for how FocalFlow behaves across sessions.</p>
+      <section class="preferences-panel" aria-labelledby="preferences-title">
+        <div class="preferences-panel-header">
+          <h2 id="preferences-title">RSVP</h2>
+        </div>
+        <section class="preferences" aria-label="Reading preferences">
+          <label class="field" for="wpm-input">
+            <span>RSVP Speed</span>
+            <input id="wpm-input" type="number" min="120" max="600" step="10">
+          </label>
+        </section>
+      </section>
+    </section>
+    <p id="status" class="status" aria-live="polite"></p>
+  </main>
+  <script src="../shared/preferences.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

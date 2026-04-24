@@ -1,12 +1,33 @@
-# FocalFlow Git ignore file
+# Dependencies / build output
+node_modules/
+dist/
+build/
+coverage/
+.cache/
 
-# Internal planning and communication files - local only
+# OS / editor
+.DS_Store
+*.log
+*.tmp
+
+# Local-only / archived workflow files
+archive/
+codex_comm/
+codex_*.md
+handoff.md
+transcript.md
+oscar-review.md
 overview.md
 technical_plan.md
 timeline.md
 product_manager.md
 coding_agent.md
-codex_comm/
 setup_repo.sh
-oscar-review.md
 speedy-source/
+debug*
+
+# Local env / secrets
+*.local.*
+.env
+.env.*
+zoho_tokens.json

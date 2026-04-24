@@ -1,0 +1,10 @@
+{
+  "name": "focalflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension scaffold for extraction-first reader mode",
+  "scripts": {
+    "build": "mkdir -p build && zip -r build/focalflow.zip manifest.json src LICENSE README.md licenses -x '*.DS_Store'"
+  },
+  "license": "MIT"
+}
