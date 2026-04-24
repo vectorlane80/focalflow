@@ -1,13 +1,16 @@
 # FocalFlow
 
-FocalFlow is a Chrome extension focused on extraction-first reading. Phase 2 establishes the minimal architecture for clean article parsing and a reader-mode shell, leaving RSVP playback for a later phase.
+FocalFlow is a Chrome extension for distraction-free reading. It extracts the active page into a clean reader shell and offers an RSVP (Rapid Serial Visual Presentation) mode for fast, focused consumption.
 
-## Current Phase
+## Features
 
-- Extract the active page into article data using Mozilla Readability.
-- Open a full-screen reader shell populated from extracted headings and paragraphs.
-- Keep permissions narrow: only `activeTab` and `scripting`.
-- Avoid copying implementation code from the reference import during this phase.
+- Extraction-first reader shell built from Mozilla Readability output.
+- RSVP playback with ORP-aligned word display, calibrated punctuation pauses, and back/forward navigation.
+- Bionic Reading toggle with a per-user default (always on, always off, or remember last).
+- Optional auto-start RSVP so the reader begins playback immediately.
+- Per-article resume: reopens at the last word you read.
+- WPM speed persists across sessions.
+- Narrow permissions: `activeTab`, `scripting`, `storage`.
 
 ## Project Structure
 

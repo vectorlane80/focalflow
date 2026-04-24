@@ -6,6 +6,8 @@ const mainView = document.getElementById('main-view');
 const preferencesView = document.getElementById('preferences-view');
 const statusNode = document.getElementById('status');
 const wpmInput = document.getElementById('wpm-input');
+const bionicModeSelect = document.getElementById('bionic-mode-select');
+const autoStartRsvpInput = document.getElementById('auto-start-rsvp-input');
 
 function setStatus(message, tone = 'default') {
   statusNode.textContent = message;
@@ -21,11 +23,15 @@ function showView(viewName) {
 async function loadPreferences() {
   const preferences = await window.FocalFlowPreferences.get();
   wpmInput.value = String(preferences.wordsPerMinute);
+  bionicModeSelect.value = preferences.bionicMode;
+  autoStartRsvpInput.checked = Boolean(preferences.autoStartRsvp);
 }
 
 async function savePreferences(partial) {
   const preferences = await window.FocalFlowPreferences.update(partial);
   wpmInput.value = String(preferences.wordsPerMinute);
+  bionicModeSelect.value = preferences.bionicMode;
+  autoStartRsvpInput.checked = Boolean(preferences.autoStartRsvp);
   setStatus('Preferences saved.', 'success');
   return preferences;
 }
@@ -87,6 +93,18 @@ window.addEventListener('DOMContentLoaded', () => {
 
 wpmInput.addEventListener('change', () => {
   savePreferences({ wordsPerMinute: wpmInput.value }).catch((error) => {
+    setStatus(error?.message || 'Preferences could not be saved.', 'error');
+  });
+});
+
+bionicModeSelect.addEventListener('change', () => {
+  savePreferences({ bionicMode: bionicModeSelect.value }).catch((error) => {
+    setStatus(error?.message || 'Preferences could not be saved.', 'error');
+  });
+});
+
+autoStartRsvpInput.addEventListener('change', () => {
+  savePreferences({ autoStartRsvp: autoStartRsvpInput.checked }).catch((error) => {
     setStatus(error?.message || 'Preferences could not be saved.', 'error');
   });
 });

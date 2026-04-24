@@ -730,6 +730,7 @@
           wordCount: article.wordCount,
           blocks: article.blocks,
           initialWordsPerMinute: readerState.preferences.wordsPerMinute,
+          autoStart: Boolean(readerState.preferences.autoStartRsvp),
           onSpeedChange: (value) => {
             readerState.preferences = sanitizePreferences({
               ...readerState.preferences,
@@ -760,9 +761,15 @@
       ensureStyleTag();
       close();
 
+      const preferences = sanitizePreferences(options.preferences);
+      const initialBionic = preferences.bionicMode === 'on'
+        ? true
+        : preferences.bionicMode === 'remember'
+          ? Boolean(preferences.bionicLastState)
+          : false;
       const readerState = {
-        bionicEnabled: false,
-        preferences: sanitizePreferences(options.preferences)
+        bionicEnabled: initialBionic,
+        preferences
       };
 
       previousOverflow = document.documentElement.style.overflow;
@@ -812,6 +819,7 @@
 
       const bionicInput = document.createElement('input');
       bionicInput.type = 'checkbox';
+      bionicInput.checked = readerState.bionicEnabled;
       bionicInput.setAttribute('aria-label', 'Toggle bionic reading');
       bionicToggle.appendChild(bionicInput);
 
@@ -856,6 +864,18 @@
         renderArticleContent(articleNode, article.blocks, {
           bionic: readerState.bionicEnabled
         });
+
+        // Only persist last state when the user opted into "remember" mode;
+        // "on"/"off" are treated as hard defaults, so toggling is session-only.
+        if (readerState.preferences.bionicMode === 'remember') {
+          readerState.preferences = sanitizePreferences({
+            ...readerState.preferences,
+            bionicLastState: readerState.bionicEnabled
+          });
+          global.FocalFlowPreferences?.update?.({
+            bionicLastState: readerState.bionicEnabled
+          });
+        }
       });
 
       root.appendChild(shell);

@@ -457,6 +457,97 @@
 
       const unsubscribe = engine.subscribe(render);
 
+      const positionUrl = global.location
+        ? `${global.location.origin}${global.location.pathname}${global.location.search}`
+        : '';
+      let lastPersistedAt = 0;
+      let hasPendingFinalSave = false;
+      let resumeResolved = !(positionUrl && global.FocalFlowPreferences?.getPosition);
+
+      function persistPosition(force = false) {
+        if (!resumeResolved) {
+          return;
+        }
+        if (!positionUrl || !global.FocalFlowPreferences?.setPosition) {
+          return;
+        }
+
+        const now = Date.now();
+        if (!force && now - lastPersistedAt < 1000) {
+          hasPendingFinalSave = true;
+          return;
+        }
+
+        lastPersistedAt = now;
+        hasPendingFinalSave = false;
+        const wordToSave = lastRenderedWord > 0 ? lastRenderedWord : 0;
+        global.FocalFlowPreferences.setPosition(positionUrl, wordToSave);
+      }
+
+      const progressUnsubscribe = engine.subscribe(() => {
+        persistPosition(false);
+      });
+
+      // Attempt to resume at saved word index. Convert word-index -> token-index
+      // by scanning progressMap for the first frame whose word progress covers
+      // the saved index. Skip if saved index is at/past the total (finished).
+      if (positionUrl && global.FocalFlowPreferences?.getPosition) {
+        global.FocalFlowPreferences.getPosition(positionUrl).then((saved) => {
+          try {
+            if (!saved || !saved.wordIndex) {
+              if (options.autoStart) {
+                engine.start();
+              }
+              return;
+            }
+
+            const totalWords = Number.isFinite(options.wordCount)
+              ? options.wordCount
+              : (Number.isFinite(latestState.wordCount) ? latestState.wordCount : latestState.tokens.length);
+
+            if (saved.wordIndex >= totalWords) {
+              if (options.autoStart) {
+                engine.start();
+              }
+              return;
+            }
+
+            const progressMap = latestState.progressMap;
+            let targetTokenIndex = -1;
+
+            if (Array.isArray(progressMap)) {
+              for (let i = 0; i < progressMap.length; i += 1) {
+                if ((Number(progressMap[i]) || 0) >= saved.wordIndex) {
+                  targetTokenIndex = i;
+                  break;
+                }
+              }
+            }
+
+            if (targetTokenIndex > 0) {
+              engine.stepBy(targetTokenIndex - latestState.currentIndex);
+              if (options.autoStart) {
+                engine.resume();
+              }
+              return;
+            }
+
+            if (options.autoStart) {
+              engine.start();
+            }
+          } finally {
+            resumeResolved = true;
+          }
+        }).catch(() => {
+          resumeResolved = true;
+          if (options.autoStart) {
+            engine.start();
+          }
+        });
+      } else if (options.autoStart) {
+        engine.start();
+      }
+
       function handleSpeedChange(value) {
         engine.setSpeed(value);
         options.onSpeedChange?.(value);
@@ -497,7 +588,13 @@
       speedInput.addEventListener('change', () => {
         handleSpeedChange(speedInput.value);
       });
+      // Slider fires `input` on every pixel of drag. Update engine live for
+      // responsive feedback, but only persist on `change` (drag release) to
+      // avoid hammering chrome.storage.local.
       speedSlider.addEventListener('input', () => {
+        engine.setSpeed(speedSlider.value);
+      });
+      speedSlider.addEventListener('change', () => {
         handleSpeedChange(speedSlider.value);
       });
 
@@ -510,6 +607,10 @@
           if (alignmentFrameId !== null) {
             cancelAnimationFrame(alignmentFrameId);
           }
+          if (hasPendingFinalSave || lastRenderedWord > 0) {
+            persistPosition(true);
+          }
+          progressUnsubscribe();
           unsubscribe();
           engine.destroy();
           root.remove();
