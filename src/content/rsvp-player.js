@@ -488,6 +488,17 @@
         persistPosition(false);
       });
 
+      // Brief pause before auto-start so the eye can settle on the first word.
+      const AUTO_START_DELAY_MS = 400;
+      let autoStartTimeoutId = null;
+
+      function scheduleAutoStart(kick) {
+        autoStartTimeoutId = setTimeout(() => {
+          autoStartTimeoutId = null;
+          kick();
+        }, AUTO_START_DELAY_MS);
+      }
+
       // Attempt to resume at saved word index. Convert word-index -> token-index
       // by scanning progressMap for the first frame whose word progress covers
       // the saved index. Skip if saved index is at/past the total (finished).
@@ -496,7 +507,7 @@
           try {
             if (!saved || !saved.wordIndex) {
               if (options.autoStart) {
-                engine.start();
+                scheduleAutoStart(() => engine.start());
               }
               return;
             }
@@ -507,7 +518,7 @@
 
             if (saved.wordIndex >= totalWords) {
               if (options.autoStart) {
-                engine.start();
+                scheduleAutoStart(() => engine.start());
               }
               return;
             }
@@ -527,13 +538,13 @@
             if (targetTokenIndex > 0) {
               engine.stepBy(targetTokenIndex - latestState.currentIndex);
               if (options.autoStart) {
-                engine.resume();
+                scheduleAutoStart(() => engine.resume());
               }
               return;
             }
 
             if (options.autoStart) {
-              engine.start();
+              scheduleAutoStart(() => engine.start());
             }
           } finally {
             resumeResolved = true;
@@ -541,11 +552,11 @@
         }).catch(() => {
           resumeResolved = true;
           if (options.autoStart) {
-            engine.start();
+            scheduleAutoStart(() => engine.start());
           }
         });
       } else if (options.autoStart) {
-        engine.start();
+        scheduleAutoStart(() => engine.start());
       }
 
       function handleSpeedChange(value) {
@@ -604,6 +615,10 @@
           root.hidden = !isActive;
         },
         destroy() {
+          if (autoStartTimeoutId !== null) {
+            clearTimeout(autoStartTimeoutId);
+            autoStartTimeoutId = null;
+          }
           if (alignmentFrameId !== null) {
             cancelAnimationFrame(alignmentFrameId);
           }

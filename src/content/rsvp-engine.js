@@ -8,8 +8,8 @@
   const MAX_WPM = 600;
   const EFFECTIVE_SPEED_MULTIPLIER = 0.95;
   const CLAUSE_PAUSE_MS = 75;
-  const SENTENCE_PAUSE_MS = 145;
-  const SENTENCE_BREAK_PAUSE_MS = 230;
+  const SENTENCE_PAUSE_MS = 200;
+  const SENTENCE_BREAK_PAUSE_MS = 290;
   const TRAILING_PUNCTUATION_PATTERN = /^[,.;:!?…'"”’)\]\}]+$/;
   const DASH_TOKEN_PATTERN = /^[-–—]+$/;
   const SENTENCE_BREAK_ABBREVIATIONS = new Set([

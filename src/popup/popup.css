@@ -160,6 +160,17 @@ button:disabled {
   margin-bottom: 0;
 }
 
+.field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.field--inline input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
 .field input,
 .field select {
   width: 100%;
