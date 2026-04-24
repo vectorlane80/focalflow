@@ -7,11 +7,13 @@
   const POSITIONS_KEY = 'focalflowReadingPositions';
   const POSITIONS_CAP = 100;
   const BIONIC_MODES = ['on', 'off', 'remember'];
+  const RSVP_RESUME_MODES = ['resume', 'restart'];
   const DEFAULTS = {
     wordsPerMinute: 250,
     bionicMode: 'off',
     bionicLastState: false,
-    autoStartRsvp: false
+    autoStartRsvp: false,
+    rsvpResumeMode: 'resume'
   };
 
   function clampWordsPerMinute(value) {
@@ -28,6 +30,10 @@
     return BIONIC_MODES.includes(value) ? value : DEFAULTS.bionicMode;
   }
 
+  function sanitizeRsvpResumeMode(value) {
+    return RSVP_RESUME_MODES.includes(value) ? value : DEFAULTS.rsvpResumeMode;
+  }
+
   function sanitize(input) {
     const source = input && typeof input === 'object' ? input : {};
 
@@ -35,16 +41,51 @@
       wordsPerMinute: clampWordsPerMinute(source.wordsPerMinute),
       bionicMode: sanitizeBionicMode(source.bionicMode),
       bionicLastState: Boolean(source.bionicLastState),
-      autoStartRsvp: Boolean(source.autoStartRsvp)
+      autoStartRsvp: Boolean(source.autoStartRsvp),
+      rsvpResumeMode: sanitizeRsvpResumeMode(source.rsvpResumeMode)
     };
   }
 
-  async function get() {
-    if (!chrome?.storage?.local) {
-      return { ...DEFAULTS };
-    }
+  // chrome.storage calls reject with "Extension context invalidated" when the
+  // extension is reloaded while a content script is still running on a page.
+  // Swallow those errors so orphaned scripts degrade silently instead of
+  // surfacing uncaught promise rejections.
+  function isContextInvalidated(error) {
+    const message = error && error.message ? String(error.message) : '';
+    return message.includes('Extension context invalidated')
+      || message.includes('Extension context was invalidated');
+  }
 
-    const stored = await chrome.storage.local.get(STORAGE_KEY);
+  async function safeStorageGet(key) {
+    if (!chrome?.storage?.local) {
+      return {};
+    }
+    try {
+      return await chrome.storage.local.get(key);
+    } catch (error) {
+      if (isContextInvalidated(error)) {
+        return {};
+      }
+      throw error;
+    }
+  }
+
+  async function safeStorageSet(payload) {
+    if (!chrome?.storage?.local) {
+      return;
+    }
+    try {
+      await chrome.storage.local.set(payload);
+    } catch (error) {
+      if (isContextInvalidated(error)) {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  async function get() {
+    const stored = await safeStorageGet(STORAGE_KEY);
     return sanitize(stored[STORAGE_KEY]);
   }
 
@@ -54,11 +95,7 @@
       ...(partial && typeof partial === 'object' ? partial : {})
     });
 
-    if (chrome?.storage?.local) {
-      await chrome.storage.local.set({
-        [STORAGE_KEY]: nextPreferences
-      });
-    }
+    await safeStorageSet({ [STORAGE_KEY]: nextPreferences });
 
     return nextPreferences;
   }
@@ -73,11 +110,7 @@
   }
 
   async function getAllPositions() {
-    if (!chrome?.storage?.local) {
-      return {};
-    }
-
-    const stored = await chrome.storage.local.get(POSITIONS_KEY);
+    const stored = await safeStorageGet(POSITIONS_KEY);
     const value = stored[POSITIONS_KEY];
     return value && typeof value === 'object' ? value : {};
   }
@@ -135,11 +168,11 @@
       for (let i = 0; i < POSITIONS_CAP; i += 1) {
         trimmed[entries[i][0]] = entries[i][1];
       }
-      await chrome.storage.local.set({ [POSITIONS_KEY]: trimmed });
+      await safeStorageSet({ [POSITIONS_KEY]: trimmed });
       return;
     }
 
-    await chrome.storage.local.set({ [POSITIONS_KEY]: all });
+    await safeStorageSet({ [POSITIONS_KEY]: all });
   }
 
   global.FocalFlowPreferences = {

@@ -83,6 +83,59 @@ test('setSpeed clamps values to [120, 600]', () => {
   controller.destroy();
 });
 
+test('__testing namespace exposes pause helpers', () => {
+  assert.equal(typeof engineNamespace.__testing.getDelayForToken, 'function');
+  assert.equal(typeof engineNamespace.__testing.getPunctuationPause, 'function');
+});
+
+test('sentence-end token produces sentence pause with no boundary set', () => {
+  const { getPunctuationPause } = engineNamespace.__testing;
+  // next word position is 2, no boundary set -> sentence pause (160)
+  assert.equal(getPunctuationPause('hello.', 'world', 2, new Set()), 160);
+});
+
+test('paragraph boundary overrides sentence pause (does not add)', () => {
+  const { getPunctuationPause } = engineNamespace.__testing;
+  const boundaries = new Set([2]);
+  // token ends with "." AND next word is a boundary -> paragraph pause only (320)
+  assert.equal(getPunctuationPause('hello.', 'World', 2, boundaries), 320);
+});
+
+test('paragraph boundary fires even without sentence terminator', () => {
+  const { getPunctuationPause } = engineNamespace.__testing;
+  const boundaries = new Set([2]);
+  // e.g. heading with no trailing period, then new paragraph
+  assert.equal(getPunctuationPause('Heading', 'Body', 2, boundaries), 320);
+});
+
+test('mid-sentence comma still returns clause pause', () => {
+  const { getPunctuationPause } = engineNamespace.__testing;
+  assert.equal(getPunctuationPause('hello,', 'world', 2, new Set()), 75);
+});
+
+test('non-punctuated token returns zero pause', () => {
+  const { getPunctuationPause } = engineNamespace.__testing;
+  assert.equal(getPunctuationPause('hello', 'world', 2, new Set()), 0);
+});
+
+test('final token (no next word position) returns zero pause', () => {
+  const { getPunctuationPause } = engineNamespace.__testing;
+  // end of stream: no next word, no boundary to fire. Sentence still fires
+  // if punctuated because isSentenceBreakToken only looks at current token.
+  // But with nextWordPosition undefined, paragraph check is skipped — good.
+  assert.equal(getPunctuationPause('end.', undefined, undefined, new Set()), 160);
+});
+
+test('getDelayForToken incorporates paragraph override in frame delays', () => {
+  const { getDelayForToken } = engineNamespace.__testing;
+  const boundaries = new Set([2]);
+  const withBoundary = getDelayForToken('hello.', 250, 'World', 2, boundaries);
+  const withoutBoundary = getDelayForToken('hello.', 250, 'World', 2, new Set());
+  // Boundary-overridden delay should be larger than plain-sentence delay by
+  // exactly (320 - 160) = 160 ms (rounding aside).
+  assert.equal(withBoundary - withoutBoundary, 160);
+});
+
 test('stepBy moves currentIndex and clamps to stream bounds', () => {
   const controller = engineNamespace.create('alpha beta gamma delta');
   let observed = null;

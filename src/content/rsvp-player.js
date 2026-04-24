@@ -208,8 +208,16 @@
   global.FocalFlowRsvpPlayer = {
     create(readingStream, options = {}) {
       const contextSegments = buildContextSegments(options.blocks);
+      // Every structural segment after the first marks a paragraph boundary;
+      // its startWord is the first word of a new segment and triggers the
+      // paragraph pause (which overrides any sentence pause).
+      const paragraphBoundaryWords = contextSegments
+        .slice(1)
+        .map((segment) => segment.startWord)
+        .filter((startWord) => Number.isFinite(startWord) && startWord > 0);
       const engine = global.FocalFlowRsvpEngine.create(readingStream, {
-        initialWordsPerMinute: options.initialWordsPerMinute
+        initialWordsPerMinute: options.initialWordsPerMinute,
+        paragraphBoundaryWords
       });
       let latestState = {
         tokens: [],
@@ -460,9 +468,10 @@
       const positionUrl = global.location
         ? `${global.location.origin}${global.location.pathname}${global.location.search}`
         : '';
+      const shouldRestart = options.rsvpResumeMode === 'restart';
       let lastPersistedAt = 0;
       let hasPendingFinalSave = false;
-      let resumeResolved = !(positionUrl && global.FocalFlowPreferences?.getPosition);
+      let resumeResolved = shouldRestart || !(positionUrl && global.FocalFlowPreferences?.getPosition);
 
       function persistPosition(force = false) {
         if (!resumeResolved) {
@@ -502,7 +511,11 @@
       // Attempt to resume at saved word index. Convert word-index -> token-index
       // by scanning progressMap for the first frame whose word progress covers
       // the saved index. Skip if saved index is at/past the total (finished).
-      if (positionUrl && global.FocalFlowPreferences?.getPosition) {
+      if (shouldRestart) {
+        if (options.autoStart) {
+          scheduleAutoStart(() => engine.start());
+        }
+      } else if (positionUrl && global.FocalFlowPreferences?.getPosition) {
         global.FocalFlowPreferences.getPosition(positionUrl).then((saved) => {
           try {
             if (!saved || !saved.wordIndex) {

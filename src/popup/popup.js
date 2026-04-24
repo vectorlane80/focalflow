@@ -8,6 +8,7 @@ const statusNode = document.getElementById('status');
 const wpmInput = document.getElementById('wpm-input');
 const bionicModeSelect = document.getElementById('bionic-mode-select');
 const autoStartRsvpInput = document.getElementById('auto-start-rsvp-input');
+const rsvpResumeModeSelect = document.getElementById('rsvp-resume-mode-select');
 
 function setStatus(message, tone = 'default') {
   statusNode.textContent = message;
@@ -25,6 +26,7 @@ async function loadPreferences() {
   wpmInput.value = String(preferences.wordsPerMinute);
   bionicModeSelect.value = preferences.bionicMode;
   autoStartRsvpInput.checked = Boolean(preferences.autoStartRsvp);
+  rsvpResumeModeSelect.value = preferences.rsvpResumeMode;
 }
 
 async function savePreferences(partial) {
@@ -32,6 +34,7 @@ async function savePreferences(partial) {
   wpmInput.value = String(preferences.wordsPerMinute);
   bionicModeSelect.value = preferences.bionicMode;
   autoStartRsvpInput.checked = Boolean(preferences.autoStartRsvp);
+  rsvpResumeModeSelect.value = preferences.rsvpResumeMode;
   setStatus('Preferences saved.', 'success');
   return preferences;
 }
@@ -66,17 +69,17 @@ async function openReaderMode(mode) {
       ]
     });
 
-    const response = await chrome.tabs.sendMessage(tab.id, {
+    // Fire the open-reader message but do not await the response; the popup
+    // closes immediately so the user perceives the reader opening without a
+    // visible round-trip. Errors after close are logged to the page console.
+    chrome.tabs.sendMessage(tab.id, {
       type: 'focalflow:open-reader',
       preferences,
       initialMode: mode
+    }).catch((error) => {
+      console.error('FocalFlow: open-reader message failed', error);
     });
 
-    if (!response?.ok) {
-      throw new Error(response?.error || 'Reader mode could not be opened on this page.');
-    }
-
-    setStatus(`${mode === 'rsvp' ? 'RSVP Reading' : 'Focused Reading'} opened.`);
     window.close();
   } catch (error) {
     const fallback = 'This page does not allow extraction or script injection.';
@@ -105,6 +108,12 @@ bionicModeSelect.addEventListener('change', () => {
 
 autoStartRsvpInput.addEventListener('change', () => {
   savePreferences({ autoStartRsvp: autoStartRsvpInput.checked }).catch((error) => {
+    setStatus(error?.message || 'Preferences could not be saved.', 'error');
+  });
+});
+
+rsvpResumeModeSelect.addEventListener('change', () => {
+  savePreferences({ rsvpResumeMode: rsvpResumeModeSelect.value }).catch((error) => {
     setStatus(error?.message || 'Preferences could not be saved.', 'error');
   });
 });

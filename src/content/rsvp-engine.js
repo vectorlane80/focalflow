@@ -8,8 +8,8 @@
   const MAX_WPM = 600;
   const EFFECTIVE_SPEED_MULTIPLIER = 0.95;
   const CLAUSE_PAUSE_MS = 75;
-  const SENTENCE_PAUSE_MS = 200;
-  const SENTENCE_BREAK_PAUSE_MS = 290;
+  const SENTENCE_PAUSE_MS = 160;
+  const PARAGRAPH_PAUSE_MS = 320;
   const TRAILING_PUNCTUATION_PATTERN = /^[,.;:!?…'"”’)\]\}]+$/;
   const DASH_TOKEN_PATTERN = /^[-–—]+$/;
   const SENTENCE_BREAK_ABBREVIATIONS = new Set([
@@ -167,9 +167,20 @@
     return /[.!?](?=["')\]“”’]*$|$)/.test(token) && !shouldSuppressSentenceBreak(token, nextToken);
   }
 
-  function getPunctuationPause(token, nextToken) {
+  function getPunctuationPause(token, nextToken, nextWordPosition, paragraphBoundaryWords) {
+    // A paragraph/structural boundary OVERRIDES a sentence pause — we don't
+    // want to add them together since that produces overly long gaps at the
+    // end of headings/list items that already end in terminal punctuation.
+    if (
+      paragraphBoundaryWords
+      && nextWordPosition != null
+      && paragraphBoundaryWords.has(nextWordPosition)
+    ) {
+      return PARAGRAPH_PAUSE_MS;
+    }
+
     if (isSentenceBreakToken(token, nextToken)) {
-      return SENTENCE_PAUSE_MS + SENTENCE_BREAK_PAUSE_MS;
+      return SENTENCE_PAUSE_MS;
     }
 
     if (/[,:;](?=["')\]]*$|$)/.test(token)) {
@@ -179,15 +190,18 @@
     return 0;
   }
 
-  function getDelayForToken(token, wpm, nextToken) {
+  function getDelayForToken(token, wpm, nextToken, nextWordPosition, paragraphBoundaryWords) {
     const baseDelay = (60000 / clampWpm(wpm)) * EFFECTIVE_SPEED_MULTIPLIER;
     const scaledDelay = baseDelay * getLengthScale(token);
 
-    return Math.round(scaledDelay + getPunctuationPause(token, nextToken));
+    return Math.round(
+      scaledDelay + getPunctuationPause(token, nextToken, nextWordPosition, paragraphBoundaryWords)
+    );
   }
 
   global.FocalFlowRsvpEngine = {
     isSentenceBreakToken,
+    __testing: { getDelayForToken, getPunctuationPause },
     create(readingStream, options = {}) {
       const stream = normalizeReadingStream(readingStream);
       const tokens = stream.tokens;
@@ -195,14 +209,30 @@
         ? stream.progressMap
         : tokens.map((_, index) => index + 1);
       const wordCount = stream.wordCount;
+      const paragraphBoundaryWords = new Set(
+        Array.isArray(options.paragraphBoundaryWords) || options.paragraphBoundaryWords instanceof Set
+          ? Array.from(options.paragraphBoundaryWords).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+          : []
+      );
       const listeners = new Set();
       let currentIndex = 0;
       let timerId = null;
       let isPlaying = false;
       let wordsPerMinute = clampWpm(options.initialWordsPerMinute ?? DEFAULT_WPM);
-      let frameDelays = tokens.map((token, index) => (
-        getDelayForToken(token, wordsPerMinute, tokens[index + 1])
-      ));
+
+      function computeFrameDelays() {
+        return tokens.map((token, index) => (
+          getDelayForToken(
+            token,
+            wordsPerMinute,
+            tokens[index + 1],
+            progressMap[index + 1],
+            paragraphBoundaryWords
+          )
+        ));
+      }
+
+      let frameDelays = computeFrameDelays();
 
       function getState() {
         return {
@@ -243,7 +273,13 @@
         }
 
         const currentToken = tokens[currentIndex];
-        const delay = frameDelays[currentIndex] ?? getDelayForToken(currentToken, wordsPerMinute, tokens[currentIndex + 1]);
+        const delay = frameDelays[currentIndex] ?? getDelayForToken(
+          currentToken,
+          wordsPerMinute,
+          tokens[currentIndex + 1],
+          progressMap[currentIndex + 1],
+          paragraphBoundaryWords
+        );
 
         timerId = window.setTimeout(step, delay);
       }
@@ -312,9 +348,7 @@
         stepBy,
         setSpeed(value) {
           wordsPerMinute = clampWpm(value);
-          frameDelays = tokens.map((token, index) => (
-            getDelayForToken(token, wordsPerMinute, tokens[index + 1])
-          ));
+          frameDelays = computeFrameDelays();
           notify();
 
           if (isPlaying) {

@@ -729,6 +729,7 @@
           blocks: article.blocks,
           initialWordsPerMinute: readerState.preferences.wordsPerMinute,
           autoStart: Boolean(readerState.preferences.autoStartRsvp),
+          rsvpResumeMode: readerState.preferences.rsvpResumeMode,
           onSpeedChange: (value) => {
             readerState.preferences = sanitizePreferences({
               ...readerState.preferences,
@@ -852,10 +853,14 @@
       });
 
       const articleNode = document.createElement('article');
-      renderArticleContent(articleNode, article.blocks, {
-        bionic: readerState.bionicEnabled
-      });
       shell.appendChild(articleNode);
+
+      // Defer body rendering to the next frame so the header paints first.
+      requestAnimationFrame(() => {
+        renderArticleContent(articleNode, article.blocks, {
+          bionic: readerState.bionicEnabled
+        });
+      });
 
       bionicInput.addEventListener('change', () => {
         readerState.bionicEnabled = bionicInput.checked;

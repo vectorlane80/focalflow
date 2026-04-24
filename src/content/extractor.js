@@ -4,7 +4,7 @@
   }
 
   function normalizeWhitespace(value) {
-    return value.replace(/\s+/g, ' ').trim();
+    return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
   }
 
   const BLOCK_TAGS = new Set([
@@ -12,6 +12,10 @@
     'FIGCAPTION', 'FIGURE', 'FOOTER', 'FORM', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
     'HEADER', 'HR', 'LI', 'MAIN', 'NAV', 'OL', 'P', 'PRE', 'SECTION', 'TABLE', 'UL'
   ]);
+
+  const FALLBACK_CONTAINER_PATTERN = /(^|[\s_-])(article|content|post|entry|story|main)([\s_-]|$)/i;
+  const FALLBACK_MIN_WORDS = 50;
+  const FALLBACK_MIN_CHARS = 200;
 
   function isNoiseText(text) {
     return /^ad feedback$/i.test(normalizeWhitespace(text || ''));
@@ -29,8 +33,8 @@
   function normalizeHeadingLevel(level) {
     const numericLevel = Number(level);
 
-    if (!Number.isFinite(numericLevel)) {
-      return 3;
+    if (!Number.isFinite(numericLevel) || numericLevel <= 0) {
+      return 2;
     }
 
     if (numericLevel <= 1) {
@@ -293,38 +297,196 @@
     return rawBlocks.map(normalizeBlock).filter(Boolean);
   }
 
+  // Fallback heuristic: when Readability yields no usable content, rank
+  // plausible article containers by raw text length minus a link-density
+  // penalty, since navigation/list blocks tend to be dense with anchor text
+  // but sparse with prose. We then walk the winning container to produce
+  // the same block shape the renderer consumes.
+  function scoreCandidate(node) {
+    const text = normalizeWhitespace(node.textContent || '');
+    const textLength = text.length;
+
+    if (textLength === 0) {
+      return 0;
+    }
+
+    let linkTextLength = 0;
+    Array.from(node.querySelectorAll('a')).forEach((anchor) => {
+      linkTextLength += normalizeWhitespace(anchor.textContent || '').length;
+    });
+
+    const linkDensity = linkTextLength / textLength;
+    return textLength * (1 - Math.min(linkDensity, 0.95));
+  }
+
+  function matchesFallbackClassOrId(node) {
+    const tokens = `${node.className || ''} ${node.id || ''}`;
+    return FALLBACK_CONTAINER_PATTERN.test(tokens);
+  }
+
+  function collectFallbackCandidates(sourceDocument) {
+    const candidates = [];
+    const seen = new Set();
+
+    function push(node) {
+      if (node && !seen.has(node)) {
+        seen.add(node);
+        candidates.push(node);
+      }
+    }
+
+    Array.from(sourceDocument.querySelectorAll('main, article, section')).forEach(push);
+
+    Array.from(sourceDocument.body ? sourceDocument.body.querySelectorAll('div') : []).forEach((node) => {
+      if (matchesFallbackClassOrId(node)) {
+        push(node);
+      }
+    });
+
+    return candidates;
+  }
+
+  function pickBestFallbackContainer(sourceDocument) {
+    const candidates = collectFallbackCandidates(sourceDocument);
+    let best = null;
+    let bestScore = 0;
+
+    candidates.forEach((node) => {
+      const score = scoreCandidate(node);
+
+      if (score > bestScore) {
+        bestScore = score;
+        best = node;
+      }
+    });
+
+    return best;
+  }
+
+  function buildBlocksFromContainer(container) {
+    const rawBlocks = [];
+    collectBlocks(container, rawBlocks);
+    return rawBlocks.map(normalizeBlock).filter(Boolean);
+  }
+
+  function extractFallback(sourceDocument) {
+    const container = pickBestFallbackContainer(sourceDocument);
+
+    if (!container) {
+      return null;
+    }
+
+    const blocks = buildBlocksFromContainer(container);
+
+    if (blocks.length === 0) {
+      return null;
+    }
+
+    const textContent = normalizeWhitespace(container.textContent || '');
+
+    if (!textContent) {
+      return null;
+    }
+
+    const contentHtml = container.innerHTML || '';
+    const title = normalizeWhitespace(
+      sourceDocument.title
+        || (sourceDocument.querySelector('h1')?.textContent || '')
+        || 'Untitled article'
+    );
+    const siteName = normalizeWhitespace(sourceDocument.location?.hostname || '');
+
+    return {
+      title,
+      byline: '',
+      excerpt: '',
+      siteName,
+      content: contentHtml,
+      textContent,
+      length: textContent.length,
+      wordCount: countWords(textContent),
+      blocks,
+      readingStream: buildReadingStream(blocks)
+    };
+  }
+
+  function isReadabilityResultWeak(article) {
+    if (!article || !article.textContent || !article.content) {
+      return true;
+    }
+
+    const text = normalizeWhitespace(article.textContent);
+    return countWords(text) < FALLBACK_MIN_WORDS && text.length < FALLBACK_MIN_CHARS;
+  }
+
+  function attachSource(result, source) {
+    if (!result) {
+      return result;
+    }
+
+    try {
+      Object.defineProperty(result, '_extractionSource', {
+        value: source,
+        enumerable: false,
+        configurable: true,
+        writable: true
+      });
+    } catch (error) {
+      result._extractionSource = source;
+    }
+
+    return result;
+  }
+
   global.FocalFlowExtractor = {
     extract(sourceDocument) {
       if (typeof Readability !== 'function') {
         throw new Error('Readability.js is not available.');
       }
 
-      const documentClone = sourceDocument.cloneNode(true);
-      const article = new Readability(documentClone).parse();
-
-      if (!article?.textContent || !article.content) {
-        return null;
+      let readabilityArticle = null;
+      try {
+        const documentClone = sourceDocument.cloneNode(true);
+        readabilityArticle = new Readability(documentClone).parse();
+      } catch (error) {
+        readabilityArticle = null;
       }
 
-      const textContent = normalizeWhitespace(article.textContent);
-      const blocks = buildBlocks(article.content);
+      if (!isReadabilityResultWeak(readabilityArticle)) {
+        const textContent = normalizeWhitespace(readabilityArticle.textContent);
+        const blocks = buildBlocks(readabilityArticle.content);
 
-      if (!textContent || blocks.length === 0) {
-        return null;
+        if (textContent && blocks.length > 0) {
+          return attachSource({
+            title: normalizeWhitespace(readabilityArticle.title || sourceDocument.title || 'Untitled article'),
+            byline: normalizeWhitespace(readabilityArticle.byline || ''),
+            excerpt: normalizeWhitespace(readabilityArticle.excerpt || ''),
+            siteName: normalizeWhitespace(readabilityArticle.siteName || sourceDocument.location?.hostname || ''),
+            content: readabilityArticle.content,
+            textContent,
+            length: readabilityArticle.length || textContent.length,
+            wordCount: countWords(textContent),
+            blocks,
+            readingStream: buildReadingStream(blocks)
+          }, 'readability');
+        }
       }
 
-      return {
-        title: normalizeWhitespace(article.title || sourceDocument.title || 'Untitled article'),
-        byline: normalizeWhitespace(article.byline || ''),
-        excerpt: normalizeWhitespace(article.excerpt || ''),
-        siteName: normalizeWhitespace(article.siteName || sourceDocument.location.hostname || ''),
-        content: article.content,
-        textContent,
-        length: article.length || textContent.length,
-        wordCount: countWords(textContent),
-        blocks,
-        readingStream: buildReadingStream(blocks)
-      };
+      const fallback = extractFallback(sourceDocument);
+      return attachSource(fallback, fallback ? 'fallback' : null);
+    },
+    __testing: {
+      normalizeWhitespace,
+      normalizeBlock,
+      normalizeListItem,
+      normalizeHeadingLevel,
+      countWords,
+      buildReadingStream,
+      scoreCandidate,
+      matchesFallbackClassOrId,
+      isReadabilityResultWeak,
+      FALLBACK_MIN_WORDS,
+      FALLBACK_MIN_CHARS
     }
   };
 })(window);
