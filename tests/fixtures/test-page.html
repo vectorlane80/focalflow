@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<!--
+  FocalFlow Test Fixture: test-page.html
+  ======================================
+
+  Purpose
+  -------
+  A controlled, static fixture for validating FocalFlow's content
+  extraction (Mozilla Readability) and RSVP timing logic without
+  depending on live websites. The markup is deterministic: the same
+  word counts are produced on every load.
+
+  How to use
+  ----------
+  Open this file directly in Chrome using the file:// protocol, for
+  example:
+
+      file:///<repo>/tests/fixtures/test-page.html
+
+  Then click the FocalFlow toolbar icon (or trigger the popup via the
+  keyboard shortcut) to run extraction and start the RSVP reader.
+
+  What it exercises
+  -----------------
+  - Structural variety: <article>, <header>, <main>, headings (h1-h3),
+    paragraphs, lists (ul, ol, nested), blockquote, pre/code.
+  - Abbreviation handling: Dr., Mr., Mrs., Prof., e.g., i.e., U.S.,
+    etc., a.m., p.m. should NOT be treated as sentence-ending periods
+    by the pause-detection logic.
+  - Paragraph boundaries: extra pause between paragraphs.
+  - Mixed punctuation: periods, question marks, exclamation marks,
+    commas, semicolons, colons, em-dashes, en-dashes, parentheticals,
+    straight and curly quotes.
+  - Inline formatting: <a>, <strong>, <em>, <code>.
+
+  The canonical expected word counts live in the HTML comment block at
+  the bottom of this file.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FocalFlow Test Article</title>
+  <meta name="description" content="A controlled fixture article for validating FocalFlow extraction and RSVP timing behavior.">
+  <style>
+    html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { max-width: 720px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; color: #222; background: #fafafa; }
+    header { margin-bottom: 1.5rem; border-bottom: 1px solid #ddd; padding-bottom: 0.75rem; }
+    h1 { font-size: 1.9rem; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.35rem; margin-top: 2rem; }
+    h3 { font-size: 1.1rem; margin-top: 1.25rem; }
+    .byline { color: #666; font-size: 0.9rem; margin: 0; }
+    blockquote { border-left: 3px solid #888; margin: 1rem 0; padding: 0.25rem 1rem; color: #444; font-style: italic; }
+    pre { background: #eee; padding: 0.75rem 1rem; overflow-x: auto; border-radius: 4px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.95em; }
+    ul, ol { padding-left: 1.5rem; }
+    li { margin: 0.25rem 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <article>
+      <header>
+        <h1>On the Quiet Virtues of Reading Slowly</h1>
+        <p class="byline">By Dr. Smith &mdash; published in the morning edition</p>
+      </header>
+
+      <p>Reading is a strange craft: it asks for stillness, yet it rewards motion. When you settle into a good sentence, the words begin to move on your behalf, and the page, paradoxically, disappears. Most of us (myself included) forget this every few years.</p>
+
+      <p>Consider the humble paragraph. It is not merely a visual break; it is a contract. The writer promises a single idea, and the reader, in turn, promises attention. Break the contract &mdash; ramble, digress, pile clause upon clause &mdash; and trust dissolves. Keep it, and the reader will follow almost anywhere.</p>
+
+      <h2>A Brief Detour Through History</h2>
+
+      <p>The ancients, e.g. Cicero and Seneca, read aloud. Silent reading was rare until roughly the seventh century, when Irish monks began separating words with spaces. Before then, text ran together likethisandwasquitepainful to parse. Dr. Smith notes, in his lectures at 10 a.m. on Tuesdays, that the invention of the space may be the single most important punctuation mark ever devised &ndash; more important, he argues, than the period itself.</p>
+
+      <p>Mrs. Patel, a librarian I met in the U.S. last spring, disagrees politely. &ldquo;The period,&rdquo; she told me, &lsquo;is where thought catches its breath.&rsquo; She may be right. Prof. Alvarez, writing in 1987, put it this way: rhythm precedes meaning, i.e. we feel the shape of a sentence before we parse it.</p>
+
+      <h3>Why This Matters for Speed Readers</h3>
+
+      <p>If you want to read quickly without losing comprehension, respect the punctuation. A period is a full stop; a comma is a half step; a semicolon is somewhere in between. Rush past them and the words blur. Honor them &mdash; even for a hundred milliseconds &mdash; and meaning accumulates.</p>
+
+      <h2>Practical Techniques</h2>
+
+      <p>Here are a few habits worth cultivating. They are simple, not easy.</p>
+
+      <ul>
+        <li>Read at a fixed cadence, not a variable one.</li>
+        <li>Pause longer at paragraph breaks than at sentence breaks.</li>
+        <li>Treat abbreviations like <code>Mr.</code> and <code>etc.</code> as single units.</li>
+        <li>Resist the urge to reread; trust the next sentence.</li>
+      </ul>
+
+      <p>And when you are ready to go further, try the following ordered exercise. It takes about fifteen minutes and works best in the morning (say, before 9 a.m.) when the mind is uncluttered.</p>
+
+      <ol>
+        <li>Pick a short essay you have never read before.</li>
+        <li>Read it once at your normal pace, without stopping.</li>
+        <li>Wait five minutes, then summarize it from memory.</li>
+        <li>Read it again, slower, and note what you missed.</li>
+      </ol>
+
+      <p>Some readers prefer a tiered plan. A nested list, for instance, can capture the shape of a daily practice:</p>
+
+      <ul>
+        <li>Morning session
+          <ul>
+            <li>Ten minutes of slow reading</li>
+            <li>Five minutes of note-taking</li>
+            <li>A short walk, no screens</li>
+          </ul>
+        </li>
+        <li>Evening session: review and reflect.</li>
+      </ul>
+
+      <blockquote>
+        &ldquo;We do not read to escape the world; we read to inhabit it more fully.&rdquo;
+        <cite>&mdash; attributed to an anonymous editor</cite>
+      </blockquote>
+
+      <p>Is that true? Perhaps. It is certainly <em>useful</em> to believe, and belief, as <strong>William James</strong> once argued, can be a kind of practice. You can also read the original essay <a href="#">here</a> if you are curious.</p>
+
+      <p>For the technically inclined, here is a minimal snippet that illustrates how a naive reader might tokenize a sentence. It is not production code &mdash; it is a sketch.</p>
+
+      <pre><code>function tokenize(text) {
+  return text.split(/\s+/).filter(Boolean);
+}</code></pre>
+
+      <p>That is all. Read slowly when you can, quickly when you must, and always, always &mdash; as Mr. Borges reminded us &mdash; with affection. The rest, etc., will follow. Thank you!</p>
+
+    </article>
+  </main>
+
+  <!--
+    Expected word counts
+    ====================
+    These counts treat each whitespace-separated token as one word,
+    after HTML tags are stripped. Abbreviations (e.g., Dr., i.e.,
+    a.m.) are counted as single tokens. Hyphenated compounds
+    (note-taking, speed-readers) are counted as single tokens.
+
+    Section breakdown
+    -----------------
+    Title (h1):                                             7 words
+    Byline:                                                 9 words
+    Paragraph 1 (intro):                                   46 words
+    Paragraph 2 (paragraph contract):                      50 words
+    h2 "A Brief Detour Through History":                    6 words
+    Paragraph 3 (ancients):                                76 words
+    Paragraph 4 (Mrs. Patel):                              49 words
+    h3 "Why This Matters for Speed Readers":                7 words
+    Paragraph 5 (respect punctuation):                     47 words
+    h2 "Practical Techniques":                              2 words
+    Paragraph 6 (habits lead-in):                          11 words
+    Unordered list (4 items):                              36 words
+    Paragraph 7 (ordered exercise lead-in):                35 words
+    Ordered list (4 items):                                35 words
+    Paragraph 8 (nested list lead-in):                     16 words
+    Nested list (top + inner + last item):                 19 words
+    Blockquote + cite:                                     18 words
+    Paragraph 9 (William James):                           31 words
+    Paragraph 10 (code lead-in):                           27 words
+    Code block:                                             8 words
+    Paragraph 11 (closing):                                31 words
+                                                         -------
+    Total (approx.):                                      566 words
+
+    Notes
+    -----
+    Exact tokenization depends on how the extractor handles inline
+    elements, punctuation-only tokens, and abbreviations. Treat these
+    numbers as a target range (roughly +/- 5%). The per-section
+    breakdown is provided so that a mismatch can be localized to a
+    single block rather than hunted through the whole document.
+  -->
+</body>
+</html>

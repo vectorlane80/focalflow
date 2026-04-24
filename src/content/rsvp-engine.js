@@ -8,8 +8,11 @@
   const MAX_WPM = 600;
   const EFFECTIVE_SPEED_MULTIPLIER = 0.95;
   const CLAUSE_PAUSE_MS = 75;
-  const SENTENCE_PAUSE_MS = 160;
-  const PARAGRAPH_PAUSE_MS = 320;
+  // Pauses scale with the current word duration so pacing feels consistent
+  // across reading speeds — a fixed ms pause feels long at high WPM and short
+  // at low WPM. Multipliers are applied to baseDelay (the per-word duration).
+  const SENTENCE_PAUSE_MULT = 0.7;
+  const PARAGRAPH_PAUSE_MULT = 1.4;
   const TRAILING_PUNCTUATION_PATTERN = /^[,.;:!?…'"”’)\]\}]+$/;
   const DASH_TOKEN_PATTERN = /^[-–—]+$/;
   const SENTENCE_BREAK_ABBREVIATIONS = new Set([
@@ -167,7 +170,40 @@
     return /[.!?](?=["')\]“”’]*$|$)/.test(token) && !shouldSuppressSentenceBreak(token, nextToken);
   }
 
-  function getPunctuationPause(token, nextToken, nextWordPosition, paragraphBoundaryWords) {
+  function getPauseType(token, nextToken, nextWordPosition, paragraphBoundaryWords) {
+    // Mirrors the branch order in getPunctuationPause so debug labels match
+    // the pause actually applied.
+    if (
+      paragraphBoundaryWords
+      && nextWordPosition != null
+      && paragraphBoundaryWords.has(nextWordPosition)
+    ) {
+      return 'paragraph';
+    }
+
+    if (isSentenceBreakToken(token, nextToken)) {
+      return 'sentence';
+    }
+
+    if (/[,:;](?=["')\]]*$|$)/.test(token)) {
+      return 'clause';
+    }
+
+    return 'none';
+  }
+
+  // Gated by a localStorage flag so devs can flip RSVP debug logging on per
+  // page without a rebuild: localStorage.setItem('focalflow.debug.rsvp', '1')
+  function isDebugEnabled() {
+    try {
+      return typeof localStorage !== 'undefined'
+        && localStorage.getItem('focalflow.debug.rsvp') === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function getPunctuationPause(token, nextToken, nextWordPosition, paragraphBoundaryWords, baseDelay) {
     // A paragraph/structural boundary OVERRIDES a sentence pause — we don't
     // want to add them together since that produces overly long gaps at the
     // end of headings/list items that already end in terminal punctuation.
@@ -176,11 +212,11 @@
       && nextWordPosition != null
       && paragraphBoundaryWords.has(nextWordPosition)
     ) {
-      return PARAGRAPH_PAUSE_MS;
+      return baseDelay * PARAGRAPH_PAUSE_MULT;
     }
 
     if (isSentenceBreakToken(token, nextToken)) {
-      return SENTENCE_PAUSE_MS;
+      return baseDelay * SENTENCE_PAUSE_MULT;
     }
 
     if (/[,:;](?=["')\]]*$|$)/.test(token)) {
@@ -195,13 +231,13 @@
     const scaledDelay = baseDelay * getLengthScale(token);
 
     return Math.round(
-      scaledDelay + getPunctuationPause(token, nextToken, nextWordPosition, paragraphBoundaryWords)
+      scaledDelay + getPunctuationPause(token, nextToken, nextWordPosition, paragraphBoundaryWords, baseDelay)
     );
   }
 
   global.FocalFlowRsvpEngine = {
     isSentenceBreakToken,
-    __testing: { getDelayForToken, getPunctuationPause },
+    __testing: { getDelayForToken, getPunctuationPause, getPauseType },
     create(readingStream, options = {}) {
       const stream = normalizeReadingStream(readingStream);
       const tokens = stream.tokens;
@@ -219,6 +255,8 @@
       let timerId = null;
       let isPlaying = false;
       let wordsPerMinute = clampWpm(options.initialWordsPerMinute ?? DEFAULT_WPM);
+      // Cache at create time so the per-tick check is a single bool read.
+      const debug = isDebugEnabled();
 
       function computeFrameDelays() {
         return tokens.map((token, index) => (
@@ -280,6 +318,22 @@
           progressMap[currentIndex + 1],
           paragraphBoundaryWords
         );
+
+        if (debug) {
+          console.debug('[FF/RSVP]', {
+            wpm: wordsPerMinute,
+            index: currentIndex,
+            word: progressMap[currentIndex],
+            token: currentToken,
+            pauseType: getPauseType(
+              currentToken,
+              tokens[currentIndex + 1],
+              progressMap[currentIndex + 1],
+              paragraphBoundaryWords
+            ),
+            delayMs: delay
+          });
+        }
 
         timerId = window.setTimeout(step, delay);
       }

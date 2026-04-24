@@ -86,54 +86,96 @@ test('setSpeed clamps values to [120, 600]', () => {
 test('__testing namespace exposes pause helpers', () => {
   assert.equal(typeof engineNamespace.__testing.getDelayForToken, 'function');
   assert.equal(typeof engineNamespace.__testing.getPunctuationPause, 'function');
+  assert.equal(typeof engineNamespace.__testing.getPauseType, 'function');
 });
 
-test('sentence-end token produces sentence pause with no boundary set', () => {
+test('getPauseType classifies pause kinds for debug logging', () => {
+  const { getPauseType } = engineNamespace.__testing;
+  const boundaries = new Set([2]);
+  // paragraph boundary wins over sentence terminator
+  assert.equal(getPauseType('hello.', 'World', 2, boundaries), 'paragraph');
+  // sentence terminator with no boundary
+  assert.equal(getPauseType('end.', 'Next', 2, new Set()), 'sentence');
+  assert.equal(getPauseType('wow!', 'Next', 2, new Set()), 'sentence');
+  assert.equal(getPauseType('really?', 'Next', 2, new Set()), 'sentence');
+  // clause punctuation
+  assert.equal(getPauseType('hello,', 'world', 2, new Set()), 'clause');
+  assert.equal(getPauseType('hello;', 'world', 2, new Set()), 'clause');
+  assert.equal(getPauseType('hello:', 'world', 2, new Set()), 'clause');
+  // plain word
+  assert.equal(getPauseType('hello', 'world', 2, new Set()), 'none');
+});
+
+// Pauses now scale with baseDelay (per-word ms). At 250 WPM:
+//   baseDelay = 60000/250 * 0.95 = 228 ms
+//   sentence (×0.7) ≈ 159.6 ms, paragraph (×1.4) ≈ 319.2 ms
+const BASE_DELAY_AT_250 = (60000 / 250) * 0.95;
+const SENTENCE_AT_250 = BASE_DELAY_AT_250 * 0.7;
+const PARAGRAPH_AT_250 = BASE_DELAY_AT_250 * 1.4;
+
+test('sentence-end token produces speed-relative sentence pause', () => {
   const { getPunctuationPause } = engineNamespace.__testing;
-  // next word position is 2, no boundary set -> sentence pause (160)
-  assert.equal(getPunctuationPause('hello.', 'world', 2, new Set()), 160);
+  assert.equal(
+    getPunctuationPause('hello.', 'world', 2, new Set(), BASE_DELAY_AT_250),
+    SENTENCE_AT_250
+  );
 });
 
 test('paragraph boundary overrides sentence pause (does not add)', () => {
   const { getPunctuationPause } = engineNamespace.__testing;
   const boundaries = new Set([2]);
-  // token ends with "." AND next word is a boundary -> paragraph pause only (320)
-  assert.equal(getPunctuationPause('hello.', 'World', 2, boundaries), 320);
+  assert.equal(
+    getPunctuationPause('hello.', 'World', 2, boundaries, BASE_DELAY_AT_250),
+    PARAGRAPH_AT_250
+  );
 });
 
 test('paragraph boundary fires even without sentence terminator', () => {
   const { getPunctuationPause } = engineNamespace.__testing;
   const boundaries = new Set([2]);
-  // e.g. heading with no trailing period, then new paragraph
-  assert.equal(getPunctuationPause('Heading', 'Body', 2, boundaries), 320);
+  assert.equal(
+    getPunctuationPause('Heading', 'Body', 2, boundaries, BASE_DELAY_AT_250),
+    PARAGRAPH_AT_250
+  );
 });
 
-test('mid-sentence comma still returns clause pause', () => {
+test('mid-sentence comma still returns fixed clause pause', () => {
   const { getPunctuationPause } = engineNamespace.__testing;
-  assert.equal(getPunctuationPause('hello,', 'world', 2, new Set()), 75);
+  assert.equal(getPunctuationPause('hello,', 'world', 2, new Set(), BASE_DELAY_AT_250), 75);
 });
 
 test('non-punctuated token returns zero pause', () => {
   const { getPunctuationPause } = engineNamespace.__testing;
-  assert.equal(getPunctuationPause('hello', 'world', 2, new Set()), 0);
+  assert.equal(getPunctuationPause('hello', 'world', 2, new Set(), BASE_DELAY_AT_250), 0);
 });
 
-test('final token (no next word position) returns zero pause', () => {
+test('final token (no next word position) skips paragraph check, sentence still fires', () => {
   const { getPunctuationPause } = engineNamespace.__testing;
-  // end of stream: no next word, no boundary to fire. Sentence still fires
-  // if punctuated because isSentenceBreakToken only looks at current token.
-  // But with nextWordPosition undefined, paragraph check is skipped — good.
-  assert.equal(getPunctuationPause('end.', undefined, undefined, new Set()), 160);
+  assert.equal(
+    getPunctuationPause('end.', undefined, undefined, new Set(), BASE_DELAY_AT_250),
+    SENTENCE_AT_250
+  );
 });
 
-test('getDelayForToken incorporates paragraph override in frame delays', () => {
+test('pauses scale with reading speed (faster WPM => shorter pauses)', () => {
+  const { getPunctuationPause } = engineNamespace.__testing;
+  const baseSlow = (60000 / 200) * 0.95;
+  const baseFast = (60000 / 450) * 0.95;
+  const slowSentence = getPunctuationPause('end.', 'Next', 2, new Set(), baseSlow);
+  const fastSentence = getPunctuationPause('end.', 'Next', 2, new Set(), baseFast);
+  assert.ok(slowSentence > fastSentence, 'slow WPM should produce longer sentence pause');
+  assert.equal(slowSentence, baseSlow * 0.7);
+  assert.equal(fastSentence, baseFast * 0.7);
+});
+
+test('getDelayForToken paragraph override adds proportional delta', () => {
   const { getDelayForToken } = engineNamespace.__testing;
   const boundaries = new Set([2]);
   const withBoundary = getDelayForToken('hello.', 250, 'World', 2, boundaries);
   const withoutBoundary = getDelayForToken('hello.', 250, 'World', 2, new Set());
-  // Boundary-overridden delay should be larger than plain-sentence delay by
-  // exactly (320 - 160) = 160 ms (rounding aside).
-  assert.equal(withBoundary - withoutBoundary, 160);
+  // Delta = (paragraph - sentence) * baseDelay = (1.4 - 0.7) * 228 ≈ 159.6, rounds to 159 or 160
+  const expectedDelta = Math.round(BASE_DELAY_AT_250 * (1.4 - 0.7));
+  assert.ok(Math.abs((withBoundary - withoutBoundary) - expectedDelta) <= 1);
 });
 
 test('stepBy moves currentIndex and clamps to stream bounds', () => {
