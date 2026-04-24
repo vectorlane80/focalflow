@@ -44,8 +44,6 @@
     }
 
     style.textContent = `
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700&family=Source+Sans+3:wght@400;500;600;700&display=swap');
-
       #${ROOT_ID} {
         --ff-bg: #f4f1ea;
         --ff-bg-alt: #eeebe4;
@@ -77,7 +75,7 @@
         width: min(880px, calc(100% - 32px));
         margin: 0 auto;
         padding: 40px 0 56px;
-        font-family: "Merriweather", Georgia, "Times New Roman", serif;
+        font-family: Charter, "Iowan Old Style", "Apple Garamond", Georgia, "Times New Roman", serif;
       }
       #${ROOT_ID} .ff-bar {
         display: flex;
@@ -120,21 +118,21 @@
       }
       #${ROOT_ID} .ff-kicker {
         margin: 0 0 6px;
-        font: 700 12px/1.3 "Merriweather", Georgia, "Times New Roman", serif;
+        font: 700 12px/1.3 Charter, "Iowan Old Style", "Apple Garamond", Georgia, "Times New Roman", serif;
         letter-spacing: 0.12em;
         text-transform: uppercase;
         color: var(--ff-accent);
       }
       #${ROOT_ID} .ff-title {
         margin: 0;
-        font-family: "Merriweather", Georgia, "Times New Roman", serif;
+        font-family: Charter, "Iowan Old Style", "Apple Garamond", Georgia, "Times New Roman", serif;
         font-size: clamp(24px, 3.2vw, 36px);
         line-height: 1.14;
         letter-spacing: -0.01em;
       }
       #${ROOT_ID} .ff-meta {
         margin: 12px 0 0;
-        font: 14px/1.7 "Merriweather", Georgia, "Times New Roman", serif;
+        font: 14px/1.7 Charter, "Iowan Old Style", "Apple Garamond", Georgia, "Times New Roman", serif;
         color: var(--ff-text-soft);
       }
       #${ROOT_ID} .ff-close {
@@ -142,7 +140,7 @@
         border: 0;
         border-radius: var(--ff-radius-pill);
         padding: 10px 14px;
-        font: 600 13px/1 "Inter", system-ui, sans-serif;
+        font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         background: linear-gradient(135deg, var(--ff-accent) 0%, var(--ff-accent-deep) 100%);
         color: #fbf7f0;
         cursor: pointer;
@@ -160,7 +158,7 @@
         display: inline-flex;
         align-items: center;
         gap: 10px;
-        font: 600 13px/1 "Inter", system-ui, sans-serif;
+        font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         color: var(--ff-text-soft);
         cursor: pointer;
       }
@@ -242,14 +240,14 @@
       }
       #${ROOT_ID} .ff-rsvp-status {
         margin: 0;
-        font: 12px/1.4 "Inter", system-ui, sans-serif;
+        font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: rgba(244, 236, 225, 0.74);
       }
       #${ROOT_ID} .ff-rsvp-mode-meta {
         margin: 0;
-        font: 500 13px/1.4 "Inter", system-ui, sans-serif;
+        font: 500 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         color: rgba(244, 236, 225, 0.46);
       }
       #${ROOT_ID} .ff-rsvp-viewport {
@@ -271,7 +269,7 @@
         font-size: calc(clamp(36px, 7vw, 72px) * var(--ff-rsvp-font-scale, 1));
         font-weight: 500;
         line-height: 1.1;
-        font-family: "Source Sans 3", "Inter", system-ui, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         font-variant-ligatures: none;
         letter-spacing: 0;
         padding: 16px 0;
@@ -316,7 +314,7 @@
       }
       #${ROOT_ID} .ff-rsvp-context-text {
         margin: 0;
-        font: 21px/1.92 "Merriweather", Georgia, "Times New Roman", serif;
+        font: 21px/1.92 Charter, "Iowan Old Style", "Apple Garamond", Georgia, "Times New Roman", serif;
         color: rgba(246, 238, 227, 0.92);
       }
       #${ROOT_ID} .ff-rsvp-context[data-variant="quote"] .ff-rsvp-context-text {
@@ -360,7 +358,7 @@
       }
       #${ROOT_ID} .ff-rsvp-control-label {
         margin: 0;
-        font: 700 11px/1 "Inter", system-ui, sans-serif;
+        font: 700 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: rgba(244, 236, 225, 0.46);
@@ -396,7 +394,7 @@
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        font: 600 13px/1 "Inter", system-ui, sans-serif;
+        font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         color: rgba(244, 236, 225, 0.72);
       }
       #${ROOT_ID} .ff-rsvp-speed-input {
@@ -416,7 +414,7 @@
         border: 0;
         border-radius: var(--ff-radius-pill);
         padding: 10px 12px;
-        font: 600 13px/1 "Inter", system-ui, sans-serif;
+        font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         background: rgba(255, 248, 239, 0.14);
         color: #f8f1e6;
         cursor: pointer;

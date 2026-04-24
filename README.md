@@ -10,13 +10,21 @@ FocalFlow is a Chrome extension for distraction-free reading. It extracts the ac
 - Optional auto-start RSVP so the reader begins playback immediately.
 - Per-article resume: reopens at the last word you read.
 - WPM speed persists across sessions.
-- Narrow permissions: `activeTab`, `scripting`, `storage`.
+
+## Permissions
+
+FocalFlow requests only three permissions, all declared in `manifest.json`:
+
+- `activeTab`: read the current tab's content when you open the popup, so the reader can extract the article.
+- `scripting`: inject the extraction runtime and reader shell into the active tab on demand.
+- `storage`: persist local preferences only (RSVP WPM, bionic mode default, auto-start toggle, and per-article resume positions). No remote sync, no telemetry, no external network calls.
 
 ## Project Structure
 
 - `manifest.json`: MV3 extension entry point.
 - `src/popup/`: popup UI that injects the extraction runtime on demand.
-- `src/content/`: extraction, reader shell, and runtime wiring.
+- `src/content/`: extraction, reader shell, RSVP engine and player, and runtime wiring.
+- `src/shared/`: shared modules such as preferences storage.
 - `src/vendor/Readability.js`: vendored upstream parser source.
 - `licenses/`: third-party license text and attribution notes.
 
