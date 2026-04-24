@@ -134,3 +134,103 @@ test('buildReadingStream produces aligned tokens and progress map', () => {
 });
 
 test.skip('extract() fallback path — requires DOMParser, Readability, and a live document; skipped without a DOM shim.', () => {});
+
+// Minimal DOM shim: just the surface collectBlocks/collectInlineText touch.
+function el(tag, children = []) {
+  const node = {
+    nodeType: 1,
+    tagName: tag.toUpperCase(),
+    childNodes: [],
+    children: [],
+    attributes: {},
+    getAttribute(name) { return this.attributes[name] ?? null; },
+    get textContent() {
+      return this.childNodes.map((child) => (
+        child.nodeType === 3 ? child.textContent : child.textContent
+      )).join('');
+    }
+  };
+  children.forEach((child) => {
+    const childNode = typeof child === 'string'
+      ? { nodeType: 3, textContent: child }
+      : child;
+    node.childNodes.push(childNode);
+    if (childNode.nodeType === 1) {
+      node.children.push(childNode);
+    }
+  });
+  return node;
+}
+
+test('collectBlocks merges inline formatting into one paragraph (regression: #23)', () => {
+  const { collectBlocks } = loadExtractor().__testing;
+  // <p>Subscribers get 19 premium products <em>for free</em> for one year:
+  //   <strong>Lovable</strong>, <a>Replit</a>, Gamma, n8n.</p>
+  const paragraph = el('P', [
+    'Subscribers get 19 premium products ',
+    el('em', ['for free']),
+    ' for one year: ',
+    el('strong', ['Lovable']),
+    ', ',
+    el('a', ['Replit']),
+    ', Gamma, n8n.'
+  ]);
+  const article = el('ARTICLE', [paragraph]);
+  // Wrap in body so root === ownerDocument.body skip path doesn't apply.
+  const body = el('BODY', [article]);
+  body.ownerDocument = { body };
+  // Children of article need ownerDocument too if collectBlocks recurses.
+  article.ownerDocument = { body };
+  paragraph.ownerDocument = { body };
+
+  const blocks = [];
+  collectBlocks(body, blocks);
+
+  // Should yield exactly one paragraph — no duplicates from <em>/<strong>/<a>.
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].type, 'paragraph');
+  assert.equal(
+    blocks[0].text,
+    'Subscribers get 19 premium products for free for one year: Lovable, Replit, Gamma, n8n.'
+  );
+});
+
+test('collectBlocks separates sibling block elements but keeps inline runs intact', () => {
+  const { collectBlocks } = loadExtractor().__testing;
+  const body = el('BODY', [
+    el('H2', ['Heading']),
+    el('P', [
+      'Intro with ',
+      el('em', ['emphasis']),
+      ' continues here.'
+    ]),
+    el('P', ['Second paragraph.'])
+  ]);
+  body.ownerDocument = { body };
+
+  const blocks = [];
+  collectBlocks(body, blocks);
+
+  assert.equal(blocks.length, 3);
+  assert.equal(blocks[0].type, 'heading');
+  assert.equal(blocks[0].text, 'Heading');
+  assert.equal(blocks[1].type, 'paragraph');
+  assert.equal(blocks[1].text, 'Intro with emphasis continues here.');
+  assert.equal(blocks[2].type, 'paragraph');
+  assert.equal(blocks[2].text, 'Second paragraph.');
+});
+
+test('collectBlocks recurses into unknown block-level wrappers without duplicating text', () => {
+  const { collectBlocks } = loadExtractor().__testing;
+  // <div><div><p>Hello <em>world</em>.</p></div></div>
+  const inner = el('DIV', [el('P', ['Hello ', el('em', ['world']), '.'])]);
+  const outer = el('DIV', [inner]);
+  const body = el('BODY', [outer]);
+  body.ownerDocument = { body };
+
+  const blocks = [];
+  collectBlocks(body, blocks);
+
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].text, 'Hello world.');
+});

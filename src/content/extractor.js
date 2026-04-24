@@ -235,39 +235,83 @@
   }
 
   function collectBlocks(parentNode, blocks) {
-    const directText = collectInlineText(parentNode);
+    // Walk childNodes, accumulating consecutive text/inline elements into a
+    // single paragraph block. Only block-level children (P, headings, lists,
+    // quotes, pre) interrupt the run — and unknown block-level containers
+    // (DIV/SECTION/ARTICLE/etc.) recurse. This avoids the prior bug where
+    // collectInlineText(parent) captured all inline descendants AND a second
+    // recursion into each <em>/<strong>/<a>/<span> child re-pushed the same
+    // text as duplicate paragraph blocks, manifesting as spurious paragraph
+    // boundaries mid-sentence during RSVP playback.
+    let inlineRun = [];
 
-    if (directText && parentNode !== parentNode.ownerDocument.body && !isNoiseText(directText)) {
-      blocks.push({ type: 'paragraph', text: directText });
-    }
-
-    Array.from(parentNode.children).forEach((node) => {
-      const text = normalizeWhitespace(node.textContent || '');
-
-      if ((!text || isNoiseText(text)) && node.tagName !== 'UL' && node.tagName !== 'OL') {
+    function flushInline() {
+      if (inlineRun.length === 0) {
         return;
       }
 
-      if (/^H[1-6]$/.test(node.tagName)) {
+      const text = normalizeWhitespace(inlineRun.join(' '));
+      inlineRun = [];
+
+      if (text && !isNoiseText(text)) {
+        blocks.push({ type: 'paragraph', text });
+      }
+    }
+
+    Array.from(parentNode.childNodes || []).forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = normalizeWhitespace(node.textContent || '');
+        if (text) {
+          inlineRun.push(text);
+        }
+        return;
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return;
+      }
+
+      const tagName = node.tagName.toUpperCase();
+
+      if (!BLOCK_TAGS.has(tagName)) {
+        if (node.getAttribute && node.getAttribute('aria-hidden') === 'true') {
+          return;
+        }
+        const inlineText = collectInlineText(node);
+        if (inlineText && !isNoiseText(inlineText)) {
+          inlineRun.push(inlineText);
+        }
+        return;
+      }
+
+      flushInline();
+
+      const text = normalizeWhitespace(node.textContent || '');
+
+      if ((!text || isNoiseText(text)) && tagName !== 'UL' && tagName !== 'OL') {
+        return;
+      }
+
+      if (/^H[1-6]$/.test(tagName)) {
         blocks.push({
           type: 'heading',
-          level: Number(node.tagName.slice(1)),
+          level: Number(tagName.slice(1)),
           text
         });
         return;
       }
 
-      if (node.tagName === 'P') {
+      if (tagName === 'P') {
         blocks.push({ type: 'paragraph', text });
         return;
       }
 
-      if (node.tagName === 'BLOCKQUOTE') {
+      if (tagName === 'BLOCKQUOTE') {
         blocks.push({ type: 'quote', text });
         return;
       }
 
-      if (node.tagName === 'PRE') {
+      if (tagName === 'PRE') {
         blocks.push({
           type: 'pre',
           text: (node.textContent || '').trim()
@@ -275,7 +319,7 @@
         return;
       }
 
-      if (node.tagName === 'UL' || node.tagName === 'OL') {
+      if (tagName === 'UL' || tagName === 'OL') {
         const listBlock = buildListBlock(node);
 
         if (listBlock) {
@@ -287,6 +331,8 @@
 
       collectBlocks(node, blocks);
     });
+
+    flushInline();
   }
 
   function buildBlocks(articleHtml) {
@@ -482,6 +528,8 @@
       normalizeHeadingLevel,
       countWords,
       buildReadingStream,
+      collectBlocks,
+      collectInlineText,
       scoreCandidate,
       matchesFallbackClassOrId,
       isReadabilityResultWeak,
