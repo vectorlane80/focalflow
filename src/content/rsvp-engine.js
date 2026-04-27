@@ -36,6 +36,41 @@
       : [];
   }
 
+  // Strip emoji codepoints from a token. The single-char glyph fonts most
+  // browsers fall back to when the page font lacks emoji coverage render as
+  // tofu/question-mark squares during RSVP — and emoji-only tokens become
+  // empty pause frames. Removing them at the engine layer keeps the
+  // focused-reading view's block.text untouched (it still shows emojis).
+  // Covers Extended_Pictographic plus the regional indicator pair used for
+  // flags, the skin-tone modifiers, ZWJ, and the VS16 emoji presentation
+  // selector that joins multi-codepoint sequences.
+  const EMOJI_PATTERN = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}\u200D\uFE0F]/gu;
+
+  function stripEmoji(token) {
+    if (typeof token !== 'string' || !token) {
+      return '';
+    }
+    return token.replace(EMOJI_PATTERN, '').trim();
+  }
+
+  function cleanEmojiFromTokens(tokens, progressMap) {
+    const cleanTokens = [];
+    const cleanProgress = [];
+    const fallbackProgress = Array.isArray(progressMap) ? progressMap : [];
+    tokens.forEach((token, index) => {
+      const cleaned = stripEmoji(token);
+      if (!cleaned) {
+        return;
+      }
+      cleanTokens.push(cleaned);
+      const progressValue = Number(fallbackProgress[index]);
+      cleanProgress.push(Number.isFinite(progressValue) && progressValue > 0
+        ? progressValue
+        : cleanProgress.length + 1);
+    });
+    return { tokens: cleanTokens, progressMap: cleanProgress };
+  }
+
   function mergeTokenFrames(tokens, progressMap) {
     const frames = [];
 
@@ -77,12 +112,13 @@
       const sourceProgressMap = Array.isArray(input.progressMap)
         ? input.progressMap.map((value) => Number(value) || 0).slice(0, sourceTokens.length)
         : [];
-      const merged = mergeTokenFrames(
+      const cleaned = cleanEmojiFromTokens(
         sourceTokens,
         sourceProgressMap.length === sourceTokens.length
           ? sourceProgressMap
           : sourceTokens.map((_, index) => index + 1)
       );
+      const merged = mergeTokenFrames(cleaned.tokens, cleaned.progressMap);
 
       return {
         text: typeof input.text === 'string' ? input.text : merged.tokens.join(' '),
@@ -94,10 +130,11 @@
 
     const text = typeof input === 'string' ? input : '';
     const sourceTokens = tokenize(text);
-    const merged = mergeTokenFrames(
+    const cleaned = cleanEmojiFromTokens(
       sourceTokens,
       sourceTokens.map((_, index) => index + 1)
     );
+    const merged = mergeTokenFrames(cleaned.tokens, cleaned.progressMap);
 
     return {
       text,
@@ -237,7 +274,7 @@
 
   global.FocalFlowRsvpEngine = {
     isSentenceBreakToken,
-    __testing: { getDelayForToken, getPunctuationPause, getPauseType },
+    __testing: { getDelayForToken, getPunctuationPause, getPauseType, stripEmoji },
     create(readingStream, options = {}) {
       const stream = normalizeReadingStream(readingStream);
       const tokens = stream.tokens;

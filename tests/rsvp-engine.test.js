@@ -178,6 +178,45 @@ test('getDelayForToken paragraph override adds proportional delta', () => {
   assert.ok(Math.abs((withBoundary - withoutBoundary) - expectedDelta) <= 1);
 });
 
+test('stripEmoji removes pictographs, flags, skin tones, ZWJ, and VS16', () => {
+  const { stripEmoji } = engineNamespace.__testing;
+  // Mixed token: keep word characters, drop the emoji.
+  assert.equal(stripEmoji('hello🎉'), 'hello');
+  assert.equal(stripEmoji('🎉world'), 'world');
+  // Emoji-only token reduces to empty.
+  assert.equal(stripEmoji('🚀'), '');
+  // Flag (regional indicator pair).
+  assert.equal(stripEmoji('🇺🇸'), '');
+  // ZWJ family sequence with skin tones.
+  assert.equal(stripEmoji('👨🏽\u200D👩🏽\u200D👧🏽'), '');
+  // Heart with VS16 emoji presentation selector.
+  assert.equal(stripEmoji('❤\uFE0F'), '');
+  // Plain text untouched.
+  assert.equal(stripEmoji('high-profile'), 'high-profile');
+  assert.equal(stripEmoji('hello,'), 'hello,');
+});
+
+test('emoji-only tokens are dropped from the playback stream', () => {
+  const controller = engineNamespace.create({
+    text: 'launch 🚀 today',
+    tokens: ['launch', '🚀', 'today'],
+    progressMap: [1, 1, 2],
+    wordCount: 2
+  });
+  let observed = null;
+  controller.subscribe((state) => { observed = state; });
+  assert.deepEqual(observed.tokens, ['launch', 'today']);
+  controller.destroy();
+});
+
+test('mixed emoji+text tokens keep their text content', () => {
+  const controller = engineNamespace.create('party🎉 time');
+  let observed = null;
+  controller.subscribe((state) => { observed = state; });
+  assert.deepEqual(observed.tokens, ['party', 'time']);
+  controller.destroy();
+});
+
 test('stepBy moves currentIndex and clamps to stream bounds', () => {
   const controller = engineNamespace.create('alpha beta gamma delta');
   let observed = null;
