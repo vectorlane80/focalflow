@@ -241,6 +241,161 @@ test('collectBlocks separates sibling block elements but keeps inline runs intac
   assert.equal(blocks[2].text, 'Second paragraph.');
 });
 
+test('cleanFootnotes drops PG-shape Notes section and strips inline [N] markers (regression: #24)', () => {
+  const { cleanFootnotes } = loadExtractor().__testing;
+  // Mirrors what Readability + collectBlocks produce for paulgraham.com:
+  // body paragraphs with inline [1]/[2], a "Notes" heading-as-paragraph,
+  // and per-note paragraphs starting with [N].
+  const blocks = [
+    { type: 'paragraph', text: 'Reading about x doesnt just teach you about x; it also teaches you how to write. [1]' },
+    { type: 'paragraph', text: 'You have to be good at reading, and read good things. [2]' },
+    { type: 'paragraph', text: 'Notes' },
+    { type: 'paragraph', text: '[1] Audiobooks can give you examples of good writing.' },
+    { type: 'paragraph', text: '[2] By "good at reading" I dont mean good at the mechanics of reading.' }
+  ];
+
+  const cleaned = cleanFootnotes(blocks);
+
+  assert.equal(cleaned.length, 2);
+  assert.equal(
+    cleaned[0].text,
+    'Reading about x doesnt just teach you about x; it also teaches you how to write.'
+  );
+  assert.equal(
+    cleaned[1].text,
+    'You have to be good at reading, and read good things.'
+  );
+});
+
+test('cleanFootnotes leaves articles without a notes section unchanged in structure', () => {
+  const { cleanFootnotes } = loadExtractor().__testing;
+  const blocks = [
+    { type: 'heading', level: 1, text: 'Title' },
+    { type: 'paragraph', text: 'A normal first paragraph.' },
+    { type: 'paragraph', text: 'A normal second paragraph.' }
+  ];
+  const cleaned = cleanFootnotes(blocks);
+  assert.equal(cleaned.length, 3);
+  assert.deepEqual(cleaned.map((b) => b.text), [
+    'Title',
+    'A normal first paragraph.',
+    'A normal second paragraph.'
+  ]);
+});
+
+test('cleanFootnotes does not fire on a body section happening to be titled "Notes"', () => {
+  // Section heading "Notes" without any `[N]` pattern in the tail must
+  // not trigger cutoff — protects articles that have a Notes-titled body
+  // section (review notes, meeting notes, etc.).
+  const { cleanFootnotes } = loadExtractor().__testing;
+  const blocks = [
+    { type: 'paragraph', text: 'Intro prose.' },
+    { type: 'heading', level: 2, text: 'Notes' },
+    { type: 'paragraph', text: 'These are general observations, not footnotes.' },
+    { type: 'paragraph', text: 'More general observations.' }
+  ];
+  const cleaned = cleanFootnotes(blocks);
+  assert.equal(cleaned.length, 4);
+});
+
+test('stripInlineMarkers removes [N] markers and tightens spacing', () => {
+  const { stripInlineMarkers } = loadExtractor().__testing;
+  assert.equal(
+    stripInlineMarkers('teaches you how to write. [1]'),
+    'teaches you how to write.'
+  );
+  assert.equal(
+    stripInlineMarkers('a sentence [3] mid-stream and tail [42]'),
+    'a sentence mid-stream and tail'
+  );
+  // In-word brackets (e.g., array indices) are NOT footnote markers.
+  assert.equal(stripInlineMarkers('foo[1]bar'), 'foo[1]bar');
+  // Backlink glyphs (return arrows) are stripped too.
+  assert.equal(stripInlineMarkers('back to body ↩'), 'back to body');
+});
+
+test('stripInlineMarkers does not eat array indices or other in-word brackets', () => {
+  // Bracket markers only count when not preceded by a word character.
+  const { stripInlineMarkers } = loadExtractor().__testing;
+  assert.equal(stripInlineMarkers('the value of arr[3] is five'), 'the value of arr[3] is five');
+  assert.equal(stripInlineMarkers('items[0] and items[10]'), 'items[0] and items[10]');
+  assert.equal(stripInlineMarkers('hash#tag[1]ref'), 'hash#tag[1]ref');
+});
+
+test('stripInlineMarkers strips consecutive markers like [1][2][3]', () => {
+  // The lookbehind only blocks word-character prefixes, so a closing `]`
+  // before the next `[` is fine — all three markers are removed.
+  const { stripInlineMarkers } = loadExtractor().__testing;
+  assert.equal(stripInlineMarkers('see [1][2][3] for details'), 'see for details');
+  assert.equal(stripInlineMarkers('citations [1][2] follow'), 'citations follow');
+});
+
+test('cleanFootnotes preserves pre/code blocks verbatim', () => {
+  const { cleanFootnotes } = loadExtractor().__testing;
+  const blocks = [
+    { type: 'paragraph', text: 'Body. [1]' },
+    { type: 'pre', text: 'const x = arr[1] + arr[2];' },
+    { type: 'paragraph', text: 'Notes' },
+    { type: 'paragraph', text: '[1] note text' }
+  ];
+  const cleaned = cleanFootnotes(blocks);
+  assert.equal(cleaned.length, 2);
+  assert.equal(cleaned[0].type, 'paragraph');
+  assert.equal(cleaned[0].text, 'Body.');
+  assert.equal(cleaned[1].type, 'pre');
+  assert.equal(cleaned[1].text, 'const x = arr[1] + arr[2];');
+});
+
+test('cleanFootnotes detects Footnotes / Endnotes / References variants', () => {
+  const { cleanFootnotes } = loadExtractor().__testing;
+  ['Footnotes', 'Endnotes', 'References', 'Footnotes:', 'Notes.'].forEach((heading) => {
+    const cleaned = cleanFootnotes([
+      { type: 'paragraph', text: 'Body prose.' },
+      { type: 'paragraph', text: heading },
+      { type: 'paragraph', text: '[1] foo' }
+    ]);
+    assert.equal(cleaned.length, 1, `cutoff failed for "${heading}"`);
+    assert.equal(cleaned[0].text, 'Body prose.');
+  });
+});
+
+test('cleanFootnotes does not drop a final "Notes" heading with no notes after it', () => {
+  // Reviewer caught: a legitimate final "Notes" section (e.g. recipe
+  // chef’s notes) should not be cut just because it’s last.
+  const { cleanFootnotes } = loadExtractor().__testing;
+  const blocks = [
+    { type: 'paragraph', text: 'Body prose.' },
+    { type: 'paragraph', text: 'Notes' }
+  ];
+  const cleaned = cleanFootnotes(blocks);
+  assert.equal(cleaned.length, 2);
+});
+
+test('cleanFootnotes preserves heading level after stripping', () => {
+  const { cleanFootnotes } = loadExtractor().__testing;
+  const blocks = [
+    { type: 'heading', level: 1, text: 'Title [1]' },
+    { type: 'paragraph', text: 'Body. [1]' },
+    { type: 'paragraph', text: 'Notes' },
+    { type: 'paragraph', text: '[1] foo' }
+  ];
+  const cleaned = cleanFootnotes(blocks);
+  assert.equal(cleaned.length, 2);
+  assert.equal(cleaned[0].type, 'heading');
+  assert.equal(cleaned[0].level, 1);
+  assert.equal(cleaned[0].text, 'Title');
+});
+
+test('cleanFootnotes handles inline-form section (single block contains "Notes [1] ...")', () => {
+  const { cleanFootnotes } = loadExtractor().__testing;
+  const blocks = [
+    { type: 'paragraph', text: 'Body prose with [1] a marker. Notes [1] First note. [2] Second note.' }
+  ];
+  const cleaned = cleanFootnotes(blocks);
+  assert.equal(cleaned.length, 1);
+  assert.equal(cleaned[0].text, 'Body prose with a marker.');
+});
+
 test('collectBlocks recurses into unknown block-level wrappers without duplicating text', () => {
   const { collectBlocks } = loadExtractor().__testing;
   // <div><div><p>Hello <em>world</em>.</p></div></div>

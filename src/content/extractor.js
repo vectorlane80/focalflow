@@ -343,12 +343,143 @@
     flushInline();
   }
 
+  // Footnote handling. Sites with notes/footnote sections produce two
+  // representations of the same content — inline `[N]` markers in body
+  // prose plus a "Notes" / "Footnotes" / "Endnotes" section at the end —
+  // which corrupts RSVP flow with stray bracket tokens and a tail of
+  // already-referenced material. Strategy: detect the section heading
+  // (or a single block that begins with one) and a confirming `[N]`
+  // pattern in the tail, then drop everything from that point on and
+  // strip inline markers from remaining blocks. Pattern-based, so it
+  // doesn't fire on standard articles with no notes section.
+  const FOOTNOTE_SECTION_HEADING_PATTERN =
+    /^(?:notes?|footnotes?|endnotes?|references)\s*[:.]?\s*$/i;
+  // Inline form: the section word follows a sentence boundary (or starts
+  // the block) and is immediately followed by a `[N]` item. The leading
+  // anchor is captured so we can preserve any prose ahead of it.
+  // Limitation: if a single block contains the sequence "...prose. [N]
+  // Notes [N] foo" with no period directly before "Notes", inline-form
+  // detection won't fire. Readability splits on `<br><br>`, so the
+  // realistic PG-style case lands as separate blocks and goes through
+  // the standalone-heading path instead.
+  const FOOTNOTE_INLINE_FORM_PATTERN =
+    /(^|[.!?]\s+)((?:notes?|footnotes?|endnotes?|references)\s*[:.]?\s*\[\s*\d{1,3}\s*\])/i;
+  // A bracketed number only counts as a footnote marker when the bracket
+  // is NOT preceded by a word character. This protects array indices
+  // ("arr[3]") and similar in-word brackets while still matching
+  // sentence-trailing markers ("write. [1]"), opener-prefixed markers
+  // (")[1]"), and consecutive markers ("[1][2][3]").
+  const INLINE_FOOTNOTE_MARKER_PATTERN = /(?<![A-Za-z0-9])\s*\[\s*\d{1,3}\s*\]/g;
+  // Backlink glyphs that some sites render after each note item to
+  // return to the in-body anchor. The optional VS16 (️) is the
+  // emoji-presentation selector that browsers may attach.
+  const FOOTNOTE_BACKLINK_PATTERN = /[↑↩]️?/g;
+  const NOTE_ITEM_PATTERN = /\[\s*\d{1,3}\s*\]/;
+
+  function blockText(block) {
+    if (!block || block.type === 'list') {
+      return '';
+    }
+    return typeof block.text === 'string' ? block.text : '';
+  }
+
+  function findFootnoteSectionStart(blocks) {
+    for (let i = 0; i < blocks.length; i += 1) {
+      const text = blockText(blocks[i]).trim();
+      if (!text) continue;
+
+      if (FOOTNOTE_SECTION_HEADING_PATTERN.test(text)) {
+        // Standalone heading. Require a `[N]` pattern in the tail so we
+        // don't trip on a body section titled "Notes" (review notes,
+        // chef's notes, etc.) — including a final "Notes" block with
+        // nothing after it, which we leave alone.
+        const tail = blocks.slice(i + 1).map(blockText).join(' ');
+        if (NOTE_ITEM_PATTERN.test(tail)) {
+          return { index: i, mode: 'heading' };
+        }
+      }
+
+      // Inline form: section word + `[N]` somewhere in this block,
+      // preceded by a sentence boundary or block start. Trim from there
+      // and drop any subsequent blocks.
+      const inlineMatch = text.match(FOOTNOTE_INLINE_FORM_PATTERN);
+      if (inlineMatch) {
+        // The section-word starts at: match index + length of the
+        // leading anchor (captured group 1).
+        const sectionWordStart = inlineMatch.index + inlineMatch[1].length;
+        return { index: i, mode: 'inline', sectionWordStart };
+      }
+    }
+    return null;
+  }
+
+  function stripInlineMarkers(text) {
+    if (typeof text !== 'string' || !text) return '';
+    return normalizeWhitespace(
+      text
+        .replace(INLINE_FOOTNOTE_MARKER_PATTERN, ' ')
+        .replace(FOOTNOTE_BACKLINK_PATTERN, ' ')
+    );
+  }
+
+  function cleanListBlock(block) {
+    const items = block.items
+      .map((item) => {
+        const text = stripInlineMarkers(item.text || '');
+        const children = Array.isArray(item.children)
+          ? item.children.map((child) => (child?.type === 'list' ? cleanListBlock(child) : child))
+              .filter(Boolean)
+          : [];
+        if (!text && children.length === 0) return null;
+        return { text, children };
+      })
+      .filter(Boolean);
+    if (items.length === 0) return null;
+    return { ...block, items };
+  }
+
+  function cleanFootnotes(blocks) {
+    const cutoff = findFootnoteSectionStart(blocks);
+    const upto = cutoff ? cutoff.index : blocks.length;
+    const cleaned = [];
+
+    for (let i = 0; i < upto; i += 1) {
+      const block = blocks[i];
+      if (!block) continue;
+      if (block.type === 'list') {
+        const list = cleanListBlock(block);
+        if (list) cleaned.push(list);
+        continue;
+      }
+      // Preserve `pre` blocks verbatim — bracketed numbers in code
+      // (e.g., array indices) are content, not footnote markers.
+      if (block.type === 'pre') {
+        cleaned.push(block);
+        continue;
+      }
+      const text = stripInlineMarkers(blockText(block));
+      if (!text) continue;
+      cleaned.push({ ...block, text });
+    }
+
+    // Inline-form cutoff: preserve any prose that appears *before* the
+    // section word in the same block.
+    if (cutoff && cutoff.mode === 'inline') {
+      const block = blocks[cutoff.index];
+      const text = blockText(block);
+      const before = stripInlineMarkers(text.slice(0, cutoff.sectionWordStart));
+      if (before) cleaned.push({ ...block, text: before });
+    }
+
+    return cleaned;
+  }
+
   function buildBlocks(articleHtml) {
     const parsedDocument = new DOMParser().parseFromString(articleHtml, 'text/html');
     const rawBlocks = [];
     collectBlocks(parsedDocument.body, rawBlocks);
 
-    return rawBlocks.map(normalizeBlock).filter(Boolean);
+    return cleanFootnotes(rawBlocks.map(normalizeBlock).filter(Boolean));
   }
 
   // Fallback heuristic: when Readability yields no usable content, rank
@@ -420,7 +551,7 @@
   function buildBlocksFromContainer(container) {
     const rawBlocks = [];
     collectBlocks(container, rawBlocks);
-    return rawBlocks.map(normalizeBlock).filter(Boolean);
+    return cleanFootnotes(rawBlocks.map(normalizeBlock).filter(Boolean));
   }
 
   function extractFallback(sourceDocument) {
@@ -538,6 +669,9 @@
       buildReadingStream,
       collectBlocks,
       collectInlineText,
+      cleanFootnotes,
+      stripInlineMarkers,
+      findFootnoteSectionStart,
       scoreCandidate,
       matchesFallbackClassOrId,
       isReadabilityResultWeak,
