@@ -215,6 +215,20 @@
         .slice(1)
         .map((segment) => segment.startWord)
         .filter((startWord) => Number.isFinite(startWord) && startWord > 0);
+      // Same localStorage flag as the engine — emit the segment table once at
+      // construction so we can audit which word indices register as paragraph
+      // boundaries and which block each came from.
+      try {
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('focalflow.debug.rsvp') === '1') {
+          console.debug('[FF/RSVP] segments', contextSegments.map((s) => ({
+            startWord: s.startWord,
+            endWord: s.endWord,
+            variant: s.variant,
+            text: s.text.length > 80 ? `${s.text.slice(0, 77)}...` : s.text
+          })));
+          console.debug('[FF/RSVP] paragraphBoundaryWords', paragraphBoundaryWords);
+        }
+      } catch (_) { /* ignore */ }
       const engine = global.FocalFlowRsvpEngine.create(readingStream, {
         initialWordsPerMinute: options.initialWordsPerMinute,
         paragraphBoundaryWords
