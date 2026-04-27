@@ -122,6 +122,27 @@ test('countWords returns 0 on empty input', () => {
   assert.equal(countWords('one two three'), 3);
 });
 
+test('countWords ignores pure-punctuation tokens (regression: #23)', () => {
+  // Must agree with progressMap, which only increments for tokens that
+  // contain word content. Counting bare em-dashes/ellipses here makes
+  // segment startWord drift past the engine's word numbering.
+  const { countWords } = loadExtractor().__testing;
+  assert.equal(countWords('hello — world'), 2);
+  assert.equal(countWords('foo … bar'), 2);
+  assert.equal(countWords('— — —'), 0);
+});
+
+test('buildReadingStream wordCount aligns with progressMap maximum', () => {
+  const { buildReadingStream } = loadExtractor().__testing;
+  const stream = buildReadingStream([
+    { type: 'paragraph', text: 'hello — world' },
+    { type: 'paragraph', text: 'foo bar' }
+  ]);
+  // 4 word-content tokens across both blocks; the bare em-dash doesn't count.
+  assert.equal(stream.wordCount, 4);
+  assert.equal(Math.max(...stream.progressMap), 4);
+});
+
 test('buildReadingStream produces aligned tokens and progress map', () => {
   const { buildReadingStream } = loadExtractor().__testing;
   const stream = buildReadingStream([

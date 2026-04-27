@@ -21,13 +21,21 @@
     return /^ad feedback$/i.test(normalizeWhitespace(text || ''));
   }
 
-  function countWords(text) {
-    const trimmed = text.trim();
-    return trimmed ? trimmed.split(/\s+/).length : 0;
-  }
-
   function hasWordContent(token) {
     return /[A-Za-z0-9]/.test(token);
+  }
+
+  // Must agree with the progressMap increment rule in buildReadingStream:
+  // pure-punctuation tokens (lone em-dashes, ellipses standing alone) do not
+  // count as words. Otherwise segment word ranges drift past progressMap
+  // numbering, and a paragraph boundary lands several frames before the next
+  // block's first word — manifesting as paragraph pauses mid-sentence.
+  function countWords(text) {
+    const trimmed = String(text == null ? '' : text).trim();
+    if (!trimmed) {
+      return 0;
+    }
+    return trimmed.split(/\s+/).filter(hasWordContent).length;
   }
 
   function normalizeHeadingLevel(level) {

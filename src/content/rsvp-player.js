@@ -8,13 +8,20 @@
   const MAX_WPM = 600;
   const NAVIGATION_STEP = 5;
 
-  function countWords(text) {
-    const trimmed = String(text || '').trim();
-    return trimmed ? trimmed.split(/\s+/).length : 0;
-  }
-
   function hasWordContent(token) {
     return /[A-Za-z0-9]/.test(token);
+  }
+
+  // Must match the progressMap increment rule in extractor.buildReadingStream
+  // — pure-punctuation tokens don't count as words. Counting them here makes
+  // segment.startWord drift ahead of the engine's word numbering, which
+  // manifests as paragraph pauses landing mid-sentence.
+  function countWords(text) {
+    const trimmed = String(text || '').trim();
+    if (!trimmed) {
+      return 0;
+    }
+    return trimmed.split(/\s+/).filter(hasWordContent).length;
   }
 
   function getFontScale(tokenLength) {
