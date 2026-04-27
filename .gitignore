@@ -25,6 +25,7 @@ coding_agent.md
 setup_repo.sh
 speedy-source/
 debug*
+diagnose-*.js
 
 # Local env / secrets
 *.local.*

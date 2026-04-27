@@ -4,7 +4,15 @@
   }
 
   function normalizeWhitespace(value) {
-    return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+    return String(value == null ? '' : value)
+      .replace(/\s+/g, ' ')
+      // Tighten errant whitespace before sentence-terminating or clause
+      // punctuation. Stray spaces of this kind appear when extraction
+      // joins inline fragments like `<a>writing</a>.` (rendered as
+      // "writing" + " ." after node-join) or when inline markers are
+      // stripped between a word and its trailing comma/period.
+      .replace(/\s+([.,;:!?)\]”’])/g, '$1')
+      .trim();
   }
 
   const BLOCK_TAGS = new Set([
@@ -12,6 +20,17 @@
     'FIGCAPTION', 'FIGURE', 'FOOTER', 'FORM', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
     'HEADER', 'HR', 'LI', 'MAIN', 'NAV', 'OL', 'P', 'PRE', 'SECTION', 'TABLE', 'UL'
   ]);
+  // Selector used to detect when an "inline" element actually wraps
+  // block-level descendants (e.g., paulgraham.com's Readability output
+  // emits a single <span size="2"> containing the entire essay's <p>s).
+  const BLOCK_TAGS_SELECTOR = Array.from(BLOCK_TAGS).map((t) => t.toLowerCase()).join(',');
+
+  function hasBlockDescendant(element) {
+    if (!element || typeof element.querySelector !== 'function') {
+      return false;
+    }
+    return element.querySelector(BLOCK_TAGS_SELECTOR) != null;
+  }
 
   const FALLBACK_CONTAINER_PATTERN = /(^|[\s_-])(article|content|post|entry|story|main)([\s_-]|$)/i;
   const FALLBACK_MIN_WORDS = 50;
@@ -285,6 +304,16 @@
         if (node.getAttribute && node.getAttribute('aria-hidden') === 'true') {
           return;
         }
+        // Transparent wrapper: an inline element (span, a, font, etc.)
+        // that actually contains block-level descendants. Recursing
+        // here preserves the inner blocks; otherwise collectInlineText
+        // would silently drop every <p> child. See paulgraham.com,
+        // where Readability wraps the entire essay in one <span>.
+        if (hasBlockDescendant(node)) {
+          flushInline();
+          collectBlocks(node, blocks);
+          return;
+        }
         const inlineText = collectInlineText(node);
         if (inlineText && !isNoiseText(inlineText)) {
           inlineRun.push(inlineText);
@@ -474,12 +503,60 @@
     return cleaned;
   }
 
+  // Some sites' Readability output emits stray inline content between
+  // adjacent `<p>` siblings (e.g., paulgraham.com closes the `<p>` early
+  // and leaves an `<a>writing</a>.` floating before the next `<p>`).
+  // After collectBlocks that orphan becomes its own short paragraph
+  // even though it logically belongs to the end of the previous one.
+  // Heuristic: if a short paragraph (<=3 words) follows a paragraph
+  // that doesn't end with sentence-terminal punctuation, append it.
+  const SENTENCE_TERMINAL_PATTERN = /[.!?](?:["')\]”’]+)?$/;
+  // Orphan fragments that should be glued back are continuations of the
+  // prior sentence — they start with a lowercase letter (link text like
+  // "writing") or pure punctuation (a stray period). Capitalized short
+  // paragraphs ("Apples", "Oranges", "Read more") are intentional new
+  // paragraphs even when the prior one lacks a terminator, so we leave
+  // them alone.
+  const ORPHAN_CONTINUATION_PATTERN = /^[a-z]|^[^A-Za-z0-9]/;
+  function stitchOrphanFragments(blocks) {
+    const result = [];
+    blocks.forEach((block) => {
+      const prev = result[result.length - 1];
+      if (
+        prev
+        && prev.type === 'paragraph'
+        && block.type === 'paragraph'
+        && typeof prev.text === 'string'
+        && typeof block.text === 'string'
+      ) {
+        const prevText = prev.text.trim();
+        const blockText = block.text.trim();
+        const blockWordCount = blockText.split(/\s+/).filter(Boolean).length;
+        if (
+          blockWordCount <= 3
+          && !SENTENCE_TERMINAL_PATTERN.test(prevText)
+          && ORPHAN_CONTINUATION_PATTERN.test(blockText)
+        ) {
+          // Replace the prev block with a fresh object instead of
+          // mutating in place, so callers can hold references safely.
+          result[result.length - 1] = {
+            ...prev,
+            text: normalizeWhitespace(`${prevText} ${blockText}`)
+          };
+          return;
+        }
+      }
+      result.push(block);
+    });
+    return result;
+  }
+
   function buildBlocks(articleHtml) {
     const parsedDocument = new DOMParser().parseFromString(articleHtml, 'text/html');
     const rawBlocks = [];
     collectBlocks(parsedDocument.body, rawBlocks);
 
-    return cleanFootnotes(rawBlocks.map(normalizeBlock).filter(Boolean));
+    return stitchOrphanFragments(cleanFootnotes(rawBlocks.map(normalizeBlock).filter(Boolean)));
   }
 
   // Fallback heuristic: when Readability yields no usable content, rank
@@ -551,7 +628,7 @@
   function buildBlocksFromContainer(container) {
     const rawBlocks = [];
     collectBlocks(container, rawBlocks);
-    return cleanFootnotes(rawBlocks.map(normalizeBlock).filter(Boolean));
+    return stitchOrphanFragments(cleanFootnotes(rawBlocks.map(normalizeBlock).filter(Boolean)));
   }
 
   function extractFallback(sourceDocument) {
@@ -672,6 +749,8 @@
       cleanFootnotes,
       stripInlineMarkers,
       findFootnoteSectionStart,
+      stitchOrphanFragments,
+      hasBlockDescendant,
       scoreCandidate,
       matchesFallbackClassOrId,
       isReadabilityResultWeak,

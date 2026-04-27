@@ -386,6 +386,101 @@ test('cleanFootnotes preserves heading level after stripping', () => {
   assert.equal(cleaned[0].text, 'Title');
 });
 
+test('normalizeWhitespace tightens space before sentence/clause punctuation', () => {
+  const { normalizeWhitespace } = loadExtractor().__testing;
+  // Stray space before period/comma after inline fragment join.
+  assert.equal(normalizeWhitespace('writing .'), 'writing.');
+  assert.equal(normalizeWhitespace('foo ,  bar .'), 'foo, bar.');
+  assert.equal(normalizeWhitespace('hello ; world :'), 'hello; world:');
+});
+
+test('collectBlocks treats inline wrappers with block descendants as transparent (regression: PG #24)', () => {
+  // Mirrors paulgraham.com after Readability: a single <span> wraps the
+  // entire essay's <p>s. Without transparent recursion, collectInlineText
+  // skipped every <p> child and produced one giant inline-only block
+  // containing only stray markers and Notes content.
+  const { collectBlocks } = loadExtractor().__testing;
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM(
+    '<body><div><span>'
+    + '<p>Body one.</p><p>Body two.</p>'
+    + '<span>[<a href="#fn1">1</a>]</span>'
+    + '<p>Body three.</p>'
+    + '</span></div></body>'
+  );
+  const blocks = [];
+  collectBlocks(dom.window.document.body, blocks);
+  assert.equal(blocks.length, 4);
+  assert.deepEqual(blocks.map((b) => b.text), [
+    'Body one.',
+    'Body two.',
+    // normalizeWhitespace tightens space before `]`; the `[ 1` portion
+    // stays whitespace-padded because no rule tightens after `[`.
+    '[ 1]',
+    'Body three.'
+  ]);
+});
+
+test('stitchOrphanFragments merges short orphan fragments into the prior mid-sentence paragraph', () => {
+  const { stitchOrphanFragments } = loadExtractor().__testing;
+  // Mirrors Readability emitting `<p>...by </p><a>writing</a>.<p>Next...`
+  const blocks = [
+    { type: 'paragraph', text: 'There is a kind of thinking that can only be done by' },
+    { type: 'paragraph', text: 'writing .' },
+    { type: 'paragraph', text: 'There are of course kinds of thinking.' }
+  ];
+  const result = stitchOrphanFragments(blocks);
+  assert.equal(result.length, 2);
+  assert.equal(
+    result[0].text,
+    'There is a kind of thinking that can only be done by writing.'
+  );
+});
+
+test('stitchOrphanFragments leaves short standalone paragraphs alone when prior block ends a sentence', () => {
+  // "November 2022" followed by a real body paragraph: the date is short
+  // but the prior block didn't end mid-sentence (no prior block at all),
+  // so it must not be merged into the next.
+  const { stitchOrphanFragments } = loadExtractor().__testing;
+  const blocks = [
+    { type: 'paragraph', text: 'November 2022' },
+    { type: 'paragraph', text: 'In the science fiction books I read as a kid.' },
+    { type: 'paragraph', text: 'A normal sentence.' }
+  ];
+  const result = stitchOrphanFragments(blocks);
+  assert.equal(result.length, 3);
+  assert.equal(result[0].text, 'November 2022');
+});
+
+test('stitchOrphanFragments does not merge when prior paragraph ends with a sentence terminator', () => {
+  // Reviewer caught: the prior test passed because the second block was
+  // long, not because of the terminator rule. Pin the actual rule.
+  const { stitchOrphanFragments } = loadExtractor().__testing;
+  const blocks = [
+    { type: 'paragraph', text: 'A complete sentence.' },
+    { type: 'paragraph', text: 'short.' },
+    { type: 'paragraph', text: 'Another paragraph.' }
+  ];
+  const result = stitchOrphanFragments(blocks);
+  assert.equal(result.length, 3);
+  assert.equal(result[1].text, 'short.');
+});
+
+test('stitchOrphanFragments does not merge capitalized short paragraphs (bullet-style)', () => {
+  // Pages that emit `<p>Apples</p><p>Oranges</p>` instead of <ul>: each
+  // paragraph is short and lacks a terminator, but they are intentional
+  // new paragraphs (start with a capital), not orphan continuations.
+  const { stitchOrphanFragments } = loadExtractor().__testing;
+  const blocks = [
+    { type: 'paragraph', text: 'Apples' },
+    { type: 'paragraph', text: 'Oranges' },
+    { type: 'paragraph', text: 'Pears' }
+  ];
+  const result = stitchOrphanFragments(blocks);
+  assert.equal(result.length, 3);
+  assert.deepEqual(result.map((b) => b.text), ['Apples', 'Oranges', 'Pears']);
+});
+
 test('cleanFootnotes handles inline-form section (single block contains "Notes [1] ...")', () => {
   const { cleanFootnotes } = loadExtractor().__testing;
   const blocks = [
