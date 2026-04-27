@@ -84,11 +84,31 @@
       return;
     }
 
+    function openFailure(reason) {
+      // `reason` is logged for debugging only — the failure shell shows
+      // a single generic copy regardless. If we ever want differentiated
+      // copy, plumb the reason through to openFailureState.
+      console.info('FocalFlow: opening failure state,', reason);
+      try {
+        global.FocalFlowReaderShell.openFailureState();
+      } catch (uiError) {
+        console.error('FocalFlow: failure shell could not open', uiError);
+      }
+    }
+
     try {
       const article = global.FocalFlowExtractor.extract(document);
 
-      if (!article) {
-        sendResponse({ ok: false, error: 'No readable article content was found on this page.' });
+      if (global.FocalFlowExtractor.isLowConfidence(article)) {
+        // Includes the null/undefined case. Route the user to the
+        // graceful failure state instead of opening a reader that would
+        // feel broken — and make sure RSVP is never launched here even
+        // if the popup asked for initialMode='rsvp'.
+        openFailure(article ? 'low-confidence' : 'no-content');
+        sendResponse({
+          ok: false,
+          error: article ? 'Extraction confidence too low.' : 'No readable article content was found on this page.'
+        });
         return;
       }
 
@@ -105,6 +125,8 @@
         }
       });
     } catch (error) {
+      console.error('FocalFlow: extraction threw', error);
+      openFailure('exception');
       sendResponse({
         ok: false,
         error: error?.message || 'Extraction failed.'

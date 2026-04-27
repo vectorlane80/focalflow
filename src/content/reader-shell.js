@@ -197,6 +197,30 @@
         border-top: 1px solid var(--ff-border);
         padding-top: 34px;
       }
+      #${ROOT_ID} .ff-failure {
+        margin: 0 auto;
+        padding: 36px 28px;
+        max-width: 560px;
+        background: var(--ff-surface);
+        border-radius: var(--ff-radius);
+        box-shadow: inset 0 0 0 1px var(--ff-border);
+        text-align: left;
+      }
+      #${ROOT_ID} .ff-failure-title {
+        margin: 0 0 12px;
+        font: 700 20px/1.3 Charter, "Iowan Old Style", "Apple Garamond", Georgia, "Times New Roman", serif;
+        color: var(--ff-text);
+      }
+      #${ROOT_ID} .ff-failure-body {
+        margin: 0 0 20px;
+        font: 16px/1.6 Charter, "Iowan Old Style", "Apple Garamond", Georgia, "Times New Roman", serif;
+        color: var(--ff-text-soft);
+      }
+      #${ROOT_ID} .ff-failure-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
       #${ROOT_ID} .ff-bionic-strong {
         font-weight: 700;
         color: #2e241c;
@@ -755,7 +779,91 @@
     currentMode = 'reader';
   }
 
+  const FAILURE_TITLE_ID = 'focalflow-failure-title';
+
+  function buildFailureShell() {
+    ensureStyleTag();
+    close();
+
+    previousOverflow = document.documentElement.style.overflow;
+    previousUrl = global.location.href;
+    document.documentElement.style.overflow = 'hidden';
+
+    const root = document.createElement('section');
+    root.id = ROOT_ID;
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-modal', 'true');
+    root.setAttribute('aria-labelledby', FAILURE_TITLE_ID);
+
+    const shell = document.createElement('div');
+    shell.className = 'ff-shell';
+
+    const headingGroup = document.createElement('div');
+    headingGroup.className = 'ff-heading-group';
+
+    const kicker = document.createElement('p');
+    kicker.className = 'ff-kicker';
+    kicker.textContent = 'FocalFlow';
+    headingGroup.appendChild(kicker);
+
+    const failurePanel = document.createElement('div');
+    failurePanel.className = 'ff-failure';
+
+    const failureTitle = document.createElement('h1');
+    failureTitle.className = 'ff-failure-title';
+    failureTitle.id = FAILURE_TITLE_ID;
+    failureTitle.textContent = "FocalFlow couldn't reliably extract this page.";
+    failurePanel.appendChild(failureTitle);
+
+    const failureBody = document.createElement('p');
+    failureBody.className = 'ff-failure-body';
+    failureBody.textContent = 'You can continue reading it on the original site.';
+    failurePanel.appendChild(failureBody);
+
+    const actions = document.createElement('div');
+    actions.className = 'ff-failure-actions';
+
+    const returnButton = document.createElement('button');
+    returnButton.type = 'button';
+    returnButton.className = 'ff-close';
+    returnButton.textContent = 'Return to original page';
+    // Closing the overlay reveals the original page underneath; framed
+    // here as a deliberate fallback rather than a generic "Close".
+    returnButton.addEventListener('click', close);
+    actions.appendChild(returnButton);
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'ff-close';
+    closeButton.textContent = 'Close';
+    closeButton.addEventListener('click', close);
+    actions.appendChild(closeButton);
+
+    failurePanel.appendChild(actions);
+
+    shell.appendChild(headingGroup);
+    shell.appendChild(failurePanel);
+    root.appendChild(shell);
+    document.body.appendChild(root);
+
+    document.addEventListener('keydown', handleEscape);
+    window.addEventListener('pagehide', handlePageLifecycleExit);
+    window.addEventListener('beforeunload', handlePageLifecycleExit);
+    attachRouteListeners();
+    isOpen = true;
+    currentMode = 'reader';
+
+    // Move keyboard focus to the primary recovery action so screen
+    // readers and keyboard-only users land inside the dialog.
+    requestAnimationFrame(() => {
+      try { returnButton.focus(); } catch (_) { /* ignore */ }
+    });
+  }
+
   global.FocalFlowReaderShell = {
+    openFailureState() {
+      buildFailureShell();
+    },
     open(article, options = {}) {
       ensureStyleTag();
       close();

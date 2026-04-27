@@ -672,6 +672,31 @@
     };
   }
 
+  // Threshold for declaring an extraction "low confidence" — too short to
+  // be a real article. Roughly 1-2 sentences. Below this we route the
+  // user to the graceful failure state instead of opening a reader that
+  // would feel broken.
+  const LOW_CONFIDENCE_WORD_THRESHOLD = 30;
+
+  function isLowConfidence(article) {
+    if (!article || typeof article !== 'object') {
+      return true;
+    }
+    const blocks = Array.isArray(article.blocks) ? article.blocks : [];
+    if (blocks.length === 0) {
+      return true;
+    }
+    const wordCount = Number(article.wordCount);
+    if (!Number.isFinite(wordCount) || wordCount < LOW_CONFIDENCE_WORD_THRESHOLD) {
+      return true;
+    }
+    const textContent = typeof article.textContent === 'string' ? article.textContent : '';
+    if (!textContent.trim()) {
+      return true;
+    }
+    return false;
+  }
+
   function isReadabilityResultWeak(article) {
     if (!article || !article.textContent || !article.content) {
       return true;
@@ -701,6 +726,8 @@
   }
 
   global.FocalFlowExtractor = {
+    isLowConfidence,
+    LOW_CONFIDENCE_WORD_THRESHOLD,
     extract(sourceDocument) {
       if (typeof Readability !== 'function') {
         throw new Error('Readability.js is not available.');
@@ -751,6 +778,8 @@
       findFootnoteSectionStart,
       stitchOrphanFragments,
       hasBlockDescendant,
+      isLowConfidence,
+      LOW_CONFIDENCE_WORD_THRESHOLD,
       scoreCandidate,
       matchesFallbackClassOrId,
       isReadabilityResultWeak,

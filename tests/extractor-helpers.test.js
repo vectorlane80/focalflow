@@ -481,6 +481,67 @@ test('stitchOrphanFragments does not merge capitalized short paragraphs (bullet-
   assert.deepEqual(result.map((b) => b.text), ['Apples', 'Oranges', 'Pears']);
 });
 
+test('isLowConfidence flags null, empty, and below-threshold extractions (#25)', () => {
+  const { isLowConfidence, LOW_CONFIDENCE_WORD_THRESHOLD } = loadExtractor().__testing;
+  assert.equal(isLowConfidence(null), true);
+  assert.equal(isLowConfidence(undefined), true);
+  assert.equal(isLowConfidence({}), true);
+  // Empty blocks → low confidence even if wordCount is high.
+  assert.equal(
+    isLowConfidence({ blocks: [], wordCount: 500, textContent: 'lots of text here' }),
+    true
+  );
+  // Below threshold word count.
+  assert.equal(
+    isLowConfidence({
+      blocks: [{ type: 'paragraph', text: 'short' }],
+      wordCount: LOW_CONFIDENCE_WORD_THRESHOLD - 1,
+      textContent: 'short'
+    }),
+    true
+  );
+  // Empty textContent.
+  assert.equal(
+    isLowConfidence({
+      blocks: [{ type: 'paragraph', text: 'foo' }],
+      wordCount: 500,
+      textContent: '   '
+    }),
+    true
+  );
+});
+
+test('isLowConfidence accepts plausible articles', () => {
+  const { isLowConfidence } = loadExtractor().__testing;
+  // 50 words of body text, several blocks, real textContent → confident.
+  const text = 'word '.repeat(50).trim();
+  assert.equal(
+    isLowConfidence({
+      blocks: [
+        { type: 'heading', level: 1, text: 'Title' },
+        { type: 'paragraph', text }
+      ],
+      wordCount: 50,
+      textContent: text
+    }),
+    false
+  );
+});
+
+test('isLowConfidence treats exactly-threshold word counts as confident', () => {
+  // Pin the boundary so a future swap of `<` for `<=` is caught.
+  const { isLowConfidence, LOW_CONFIDENCE_WORD_THRESHOLD } = loadExtractor().__testing;
+  const text = 'word '.repeat(LOW_CONFIDENCE_WORD_THRESHOLD).trim();
+  assert.equal(
+    isLowConfidence({
+      blocks: [{ type: 'paragraph', text }],
+      wordCount: LOW_CONFIDENCE_WORD_THRESHOLD,
+      textContent: text
+    }),
+    false
+  );
+});
+
 test('cleanFootnotes handles inline-form section (single block contains "Notes [1] ...")', () => {
   const { cleanFootnotes } = loadExtractor().__testing;
   const blocks = [
