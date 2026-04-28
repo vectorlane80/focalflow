@@ -180,6 +180,7 @@
     const fragment = document.createDocumentFragment();
     const parts = String(text || '').split(/(\s+)/);
     let currentWordIndex = 0;
+    let highlightNode = null;
 
     parts.forEach((part) => {
       if (!part) {
@@ -203,6 +204,7 @@
         highlight.className = 'ff-rsvp-context-current';
         highlight.textContent = part;
         fragment.appendChild(highlight);
+        highlightNode = highlight;
         return;
       }
 
@@ -210,6 +212,7 @@
     });
 
     node.replaceChildren(fragment);
+    return highlightNode;
   }
 
   global.FocalFlowRsvpPlayer = {
@@ -465,7 +468,14 @@
 
         if (activeContextSegment) {
           contextView.dataset.variant = activeContextSegment.variant;
-          renderHighlightedContext(contextText, activeContextSegment.text, localWordIndex);
+          const highlight = renderHighlightedContext(contextText, activeContextSegment.text, localWordIndex);
+          // Only scroll the highlight into view when the context is
+          // actually visible (paused). During playback the context is
+          // opacity:0 — scrolling it would be wasted work and could
+          // accidentally shift any future scrollable ancestor.
+          if (contextVisible && highlight) {
+            highlight.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+          }
         } else {
           contextView.dataset.variant = 'paragraph';
           contextText.textContent = '';

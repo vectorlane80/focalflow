@@ -237,6 +237,10 @@
           radial-gradient(circle at top, rgba(72, 57, 45, 0.12), transparent 32%),
           linear-gradient(180deg, #11100f 0%, #0b0a09 100%);
         z-index: 1;
+        /* Belt-and-suspenders for short-but-wide windows where the
+           locked viewport plus controls would otherwise clip past the
+           bottom — gives the user a scroll path of last resort. */
+        overflow-y: auto;
         transition: opacity 220ms ease;
       }
       #${ROOT_ID} .ff-rsvp-stage {
@@ -278,7 +282,16 @@
         position: relative;
         display: grid;
         width: 100%;
-        min-height: 26vh;
+        /* Fixed height: the display and context layers share grid cell
+           1/1, so without a fixed size the cell tracks the *larger* of
+           the two — even when context is opacity: 0 it still drives
+           layout. As active segments change, the viewport (and the
+           controls below) would jump. Locking height keeps everything
+           stable; long context paragraphs scroll inside.
+           Bounded with clamp so very short windows (landscape mobile,
+           docked) don't clip controls and very tall windows don't waste
+           the whole screen on an empty viewport. */
+        height: clamp(160px, 40vh, 360px);
         align-items: center;
       }
       #${ROOT_ID} .ff-rsvp-display {
@@ -288,7 +301,7 @@
         justify-content: center;
         width: 100%;
         max-width: 100%;
-        min-height: 26vh;
+        height: 100%;
         color: #f6eee3;
         font-size: calc(clamp(36px, 7vw, 72px) * var(--ff-rsvp-font-scale, 1));
         font-weight: 500;
@@ -330,8 +343,16 @@
       #${ROOT_ID} .ff-rsvp-context {
         grid-area: 1 / 1;
         width: min(760px, 100%);
+        height: 100%;
+        max-height: 100%;
         justify-self: center;
         padding: 10px 4px;
+        overflow-y: auto;
+        /* Match the dark RSVP overlay so the scrollbar doesn't pop a
+           bright system chrome on Windows/Linux when long paragraphs
+           overflow the locked viewport. */
+        scrollbar-width: thin;
+        scrollbar-color: rgba(246, 238, 227, 0.24) transparent;
         opacity: 0;
         pointer-events: none;
         transition: opacity 140ms ease;
@@ -524,6 +545,13 @@
           padding: 24px 16px;
           width: calc(100% - 24px);
           max-width: calc(100% - 24px);
+        }
+        #${ROOT_ID} .ff-rsvp-viewport {
+          /* Narrow screens (mobile portrait): trim the locked viewport
+             height so the controls stay visible. Short-but-wide windows
+             are caught by the clamp() above and the .ff-rsvp scroll
+             fallback, since this breakpoint only triggers on width. */
+          height: clamp(140px, 32vh, 280px);
         }
         #${ROOT_ID} .ff-rsvp-display {
           font-size: calc(clamp(28px, 10vw, 52px) * var(--ff-rsvp-font-scale, 1));
