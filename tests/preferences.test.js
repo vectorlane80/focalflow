@@ -31,6 +31,14 @@ describe('sanitizeTheme', () => {
   it('rejects empty string, falls back to light', () => {
     assert.equal(Prefs.sanitizeTheme(''), 'light');
   });
+
+  it('rejects non-string inputs (number, boolean, object, array), falls back to light', () => {
+    assert.equal(Prefs.sanitizeTheme(0), 'light');
+    assert.equal(Prefs.sanitizeTheme(1), 'light');
+    assert.equal(Prefs.sanitizeTheme(true), 'light');
+    assert.equal(Prefs.sanitizeTheme({}), 'light');
+    assert.equal(Prefs.sanitizeTheme([]), 'light');
+  });
 });
 
 describe('sanitize() theme field', () => {

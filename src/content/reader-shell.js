@@ -55,7 +55,6 @@
         --ff-accent-deep: #246766;
         --ff-orp: #b15c38;
         --ff-border: rgba(47, 122, 120, 0.12);
-        --ff-shadow: 0 12px 28px rgba(35, 38, 43, 0.08);
         --ff-radius: 18px;
         --ff-radius-pill: 999px;
         --ff-transition: 170ms ease;
@@ -524,7 +523,6 @@
         --ff-text: #ece6da;
         --ff-text-soft: #9aa1ab;
         --ff-border: rgba(236, 230, 218, 0.14);
-        --ff-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
         --ff-accent: #3d9896;
         --ff-accent-deep: #2f7a78;
       }
@@ -541,7 +539,9 @@
         background: rgba(0, 0, 0, 0.28);
       }
       #${ROOT_ID}[data-theme="dark"] .ff-bionic-strong {
-        color: #ece6da;
+        /* Brighter than --ff-text in dark theme so bionic emphasis
+           reads as visually heavier, not just heavier weight. */
+        color: #ffffff;
       }
       #${ROOT_ID} .ff-settings {
         margin-top: 12px;
@@ -576,7 +576,10 @@
         padding: 7px 10px;
         font: 14px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         color: var(--ff-text);
-        background: var(--ff-bg);
+        /* Use the panel surface so inputs sit slightly *above* the
+           panel rather than the same color as the page bg, which makes
+           them findable in dark mode without bumping border weight. */
+        background: var(--ff-surface);
         width: 100%;
       }
       #${ROOT_ID} .ff-settings-checkbox-row {
@@ -1158,7 +1161,7 @@
       // Resume behavior field
       const resumeSelect = document.createElement('select');
       resumeSelect.className = 'ff-settings-select';
-      [['resume', 'Resume from last position'], ['restart', 'Always restart']].forEach(([val, label]) => {
+      [['resume', 'Resume from last position'], ['restart', 'Always start from beginning']].forEach(([val, label]) => {
         const opt = document.createElement('option');
         opt.value = val;
         opt.textContent = label;
@@ -1218,9 +1221,7 @@
 
         if (isHidden) {
           // Focus first interactive control when opening
-          requestAnimationFrame(() => {
-            try { wpmInput.focus(); } catch (_) { /* ignore */ }
-          });
+          requestAnimationFrame(() => { wpmInput.focus(); });
         } else {
           settingsButton.focus();
         }
