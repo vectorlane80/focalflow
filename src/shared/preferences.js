@@ -8,12 +8,14 @@
   const POSITIONS_CAP = 100;
   const BIONIC_MODES = ['on', 'off', 'remember'];
   const RSVP_RESUME_MODES = ['resume', 'restart'];
+  const THEME_VALUES = ['light', 'dark'];
   const DEFAULTS = {
     wordsPerMinute: 250,
     bionicMode: 'off',
     bionicLastState: false,
     autoStartRsvp: false,
-    rsvpResumeMode: 'resume'
+    rsvpResumeMode: 'resume',
+    theme: 'light'
   };
 
   function clampWordsPerMinute(value) {
@@ -34,6 +36,10 @@
     return RSVP_RESUME_MODES.includes(value) ? value : DEFAULTS.rsvpResumeMode;
   }
 
+  function sanitizeTheme(value) {
+    return THEME_VALUES.includes(value) ? value : DEFAULTS.theme;
+  }
+
   function sanitize(input) {
     const source = input && typeof input === 'object' ? input : {};
 
@@ -42,7 +48,8 @@
       bionicMode: sanitizeBionicMode(source.bionicMode),
       bionicLastState: Boolean(source.bionicLastState),
       autoStartRsvp: Boolean(source.autoStartRsvp),
-      rsvpResumeMode: sanitizeRsvpResumeMode(source.rsvpResumeMode)
+      rsvpResumeMode: sanitizeRsvpResumeMode(source.rsvpResumeMode),
+      theme: sanitizeTheme(source.theme)
     };
   }
 
@@ -178,6 +185,7 @@
   global.FocalFlowPreferences = {
     defaults: { ...DEFAULTS },
     sanitize,
+    sanitizeTheme,
     get,
     update,
     normalizeUrl,
