@@ -128,6 +128,9 @@
         font-size: clamp(24px, 3.2vw, 36px);
         line-height: 1.14;
         letter-spacing: -0.01em;
+        /* Set explicitly so host-page CSS targeting h1 can't override
+           our themed text color via specificity. */
+        color: var(--ff-text);
       }
       #${ROOT_ID} .ff-meta {
         margin: 12px 0 0;
@@ -487,6 +490,7 @@
       #${ROOT_ID} blockquote {
         font-size: 21px;
         line-height: 1.92;
+        color: var(--ff-text);
       }
       #${ROOT_ID} blockquote {
         border-left: 4px solid rgba(138, 93, 56, 0.22);
@@ -508,6 +512,7 @@
         margin-bottom: 12px;
         font-size: 21px;
         line-height: 1.9;
+        color: var(--ff-text);
       }
       #${ROOT_ID} h1,
       #${ROOT_ID} h2,
@@ -515,6 +520,7 @@
       #${ROOT_ID} h4 {
         font-size: 26px;
         line-height: 1.24;
+        color: var(--ff-text);
       }
       #${ROOT_ID}[data-theme="dark"] {
         --ff-bg: #1b1d20;
