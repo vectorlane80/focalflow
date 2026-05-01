@@ -640,6 +640,50 @@
     routeListenersAttached = false;
   }
 
+  // Live preference sync: when the popup writes a new theme (or any pref)
+  // to chrome.storage.local, every open reader on every tab gets a change
+  // event. We re-apply the theme attribute on the open root so the user
+  // doesn't have to close and reopen. Listener is attached on open and
+  // detached on close to avoid lingering work after dismissal.
+  let storageChangeListener = null;
+
+  function applyThemeFromPrefs(prefs) {
+    const root = document.getElementById(ROOT_ID);
+    if (!root || !prefs) {
+      return;
+    }
+    const next = prefs.theme === 'dark' ? 'dark' : 'light';
+    if (root.dataset.theme !== next) {
+      root.dataset.theme = next;
+    }
+  }
+
+  function attachStorageListener() {
+    if (storageChangeListener || !chrome?.storage?.onChanged?.addListener) {
+      return;
+    }
+    storageChangeListener = (changes, areaName) => {
+      if (areaName !== 'local') {
+        return;
+      }
+      const entry = changes.focalflowPreferences;
+      if (!entry || !entry.newValue) {
+        return;
+      }
+      applyThemeFromPrefs(entry.newValue);
+    };
+    chrome.storage.onChanged.addListener(storageChangeListener);
+  }
+
+  function detachStorageListener() {
+    if (!storageChangeListener || !chrome?.storage?.onChanged?.removeListener) {
+      storageChangeListener = null;
+      return;
+    }
+    chrome.storage.onChanged.removeListener(storageChangeListener);
+    storageChangeListener = null;
+  }
+
   function close() {
     const root = document.getElementById(ROOT_ID);
 
@@ -656,6 +700,7 @@
     window.removeEventListener('pagehide', handlePageLifecycleExit);
     window.removeEventListener('beforeunload', handlePageLifecycleExit);
     detachRouteListeners();
+    detachStorageListener();
     document.documentElement.style.overflow = previousOverflow;
     isOpen = false;
     currentMode = 'reader';
@@ -904,6 +949,7 @@
     window.addEventListener('pagehide', handlePageLifecycleExit);
     window.addEventListener('beforeunload', handlePageLifecycleExit);
     attachRouteListeners();
+    attachStorageListener();
     isOpen = true;
     currentMode = 'reader';
 
@@ -1051,6 +1097,7 @@
       window.addEventListener('pagehide', handlePageLifecycleExit);
       window.addEventListener('beforeunload', handlePageLifecycleExit);
       attachRouteListeners();
+      attachStorageListener();
       isOpen = true;
       currentMode = 'reader';
 
