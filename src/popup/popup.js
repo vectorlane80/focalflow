@@ -9,6 +9,7 @@ const wpmInput = document.getElementById('wpm-input');
 const bionicModeSelect = document.getElementById('bionic-mode-select');
 const autoStartRsvpInput = document.getElementById('auto-start-rsvp-input');
 const rsvpResumeModeSelect = document.getElementById('rsvp-resume-mode-select');
+const themeSelect = document.getElementById('theme-select');
 
 function setStatus(message, tone = 'default') {
   statusNode.textContent = message;
@@ -27,6 +28,7 @@ async function loadPreferences() {
   bionicModeSelect.value = preferences.bionicMode;
   autoStartRsvpInput.checked = Boolean(preferences.autoStartRsvp);
   rsvpResumeModeSelect.value = preferences.rsvpResumeMode;
+  themeSelect.value = preferences.theme;
 }
 
 async function savePreferences(partial) {
@@ -35,6 +37,7 @@ async function savePreferences(partial) {
   bionicModeSelect.value = preferences.bionicMode;
   autoStartRsvpInput.checked = Boolean(preferences.autoStartRsvp);
   rsvpResumeModeSelect.value = preferences.rsvpResumeMode;
+  themeSelect.value = preferences.theme;
   setStatus('Preferences saved.', 'success');
   return preferences;
 }
@@ -92,6 +95,17 @@ window.addEventListener('DOMContentLoaded', () => {
   loadPreferences().catch((error) => {
     setStatus(error?.message || 'Preferences could not be loaded.', 'error');
   });
+
+  // Prefill the feedback link with the active tab URL so reports include
+  // page context. Best-effort: if the query fails (e.g., chrome:// page),
+  // the link still works without the body parameter.
+  chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+    if (!tab?.url) return;
+    const link = document.getElementById('feedback-link');
+    if (link) {
+      link.href += `&body=${encodeURIComponent(`Page: ${tab.url}`)}`;
+    }
+  }).catch(() => { /* noop */ });
 });
 
 wpmInput.addEventListener('change', () => {
@@ -114,6 +128,12 @@ autoStartRsvpInput.addEventListener('change', () => {
 
 rsvpResumeModeSelect.addEventListener('change', () => {
   savePreferences({ rsvpResumeMode: rsvpResumeModeSelect.value }).catch((error) => {
+    setStatus(error?.message || 'Preferences could not be saved.', 'error');
+  });
+});
+
+themeSelect.addEventListener('change', () => {
+  savePreferences({ theme: themeSelect.value }).catch((error) => {
     setStatus(error?.message || 'Preferences could not be saved.', 'error');
   });
 });

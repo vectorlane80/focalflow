@@ -26,7 +26,7 @@
       <p class="summary">Saved defaults for how FocalFlow behaves across sessions.</p>
       <section class="preferences-panel" aria-labelledby="preferences-title">
         <div class="preferences-panel-header">
-          <h2 id="preferences-title">RSVP</h2>
+          <h2 id="preferences-title">Reader</h2>
         </div>
         <section class="preferences" aria-label="Reading preferences">
           <label class="field" for="wpm-input">
@@ -52,8 +52,19 @@
               <option value="restart">Always start from beginning</option>
             </select>
           </label>
+          <label class="field" for="theme-select">
+            <span>Theme</span>
+            <select id="theme-select">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
         </section>
       </section>
+      <p class="preferences-hint">Some pages may not render perfectly yet (e.g., complex layouts or footnotes).</p>
+      <p class="preferences-feedback">
+        <a id="feedback-link" href="https://github.com/vectorlane80/focalflow/issues/new?title=Feedback%20on%20FocalFlow" target="_blank" rel="noopener noreferrer">Send feedback</a>
+      </p>
     </section>
     <p id="status" class="status" aria-live="polite"></p>
   </main>

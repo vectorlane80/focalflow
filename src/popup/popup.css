@@ -197,3 +197,26 @@ button:disabled {
 .status[data-tone="error"] {
   color: #8f2d1f;
 }
+
+.preferences-hint {
+  margin: 14px 0 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ff-text-muted);
+}
+
+.preferences-feedback {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.preferences-feedback a {
+  color: var(--ff-text-muted);
+  text-decoration: none;
+}
+
+.preferences-feedback a:hover {
+  color: var(--ff-accent);
+  text-decoration: underline;
+}

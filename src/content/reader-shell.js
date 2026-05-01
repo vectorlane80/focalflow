@@ -543,86 +543,6 @@
            reads as visually heavier, not just heavier weight. */
         color: #ffffff;
       }
-      #${ROOT_ID} .ff-settings {
-        margin-top: 12px;
-        padding: 18px 20px 14px;
-        border-radius: var(--ff-radius);
-        background: var(--ff-surface);
-        box-shadow: inset 0 0 0 1px var(--ff-border);
-      }
-      #${ROOT_ID} .ff-settings[hidden] {
-        display: none;
-      }
-      #${ROOT_ID} .ff-settings-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 14px 20px;
-      }
-      #${ROOT_ID} .ff-settings-field {
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
-      }
-      #${ROOT_ID} .ff-settings-label {
-        font: 600 12px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        letter-spacing: 0.04em;
-        color: var(--ff-text-soft);
-        text-transform: uppercase;
-      }
-      #${ROOT_ID} .ff-settings-input,
-      #${ROOT_ID} .ff-settings-select {
-        border: 1px solid var(--ff-border);
-        border-radius: 8px;
-        padding: 7px 10px;
-        font: 14px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        color: var(--ff-text);
-        /* Use the panel surface so inputs sit slightly *above* the
-           panel rather than the same color as the page bg, which makes
-           them findable in dark mode without bumping border weight. */
-        background: var(--ff-surface);
-        width: 100%;
-      }
-      #${ROOT_ID} .ff-settings-checkbox-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding-top: 4px;
-      }
-      #${ROOT_ID} .ff-settings-checkbox-row input[type="checkbox"] {
-        width: 16px;
-        height: 16px;
-        accent-color: var(--ff-accent);
-        cursor: pointer;
-      }
-      #${ROOT_ID} .ff-settings-checkbox-row span {
-        font: 14px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        color: var(--ff-text);
-      }
-      #${ROOT_ID} .ff-settings-footer {
-        margin-top: 14px;
-        padding-top: 12px;
-        border-top: 1px solid var(--ff-border);
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        flex-wrap: wrap;
-      }
-      #${ROOT_ID} .ff-settings-hint {
-        flex: 1;
-        margin: 0;
-        font: 12px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        color: var(--ff-text-soft);
-      }
-      #${ROOT_ID} .ff-feedback-link {
-        font: 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        color: var(--ff-text-soft);
-        text-decoration: none;
-        white-space: nowrap;
-      }
-      #${ROOT_ID} .ff-feedback-link:hover {
-        color: var(--ff-accent);
-        text-decoration: underline;
-      }
       @media (max-width: 640px) {
         #${ROOT_ID} .ff-shell {
           width: calc(100% - 24px);
@@ -667,28 +587,9 @@
   }
 
   function handleEscape(event) {
-    if (event.key !== 'Escape') {
-      return;
+    if (event.key === 'Escape') {
+      close();
     }
-
-    // Close settings panel first if it's open; second Esc closes the reader.
-    const settingsPanel = document.getElementById(ROOT_ID)
-      ?.querySelector('.ff-settings');
-
-    if (settingsPanel && !settingsPanel.hidden) {
-      const settingsBtn = document.getElementById(ROOT_ID)
-        ?.querySelector('.ff-settings-btn');
-      settingsPanel.hidden = true;
-
-      if (settingsBtn) {
-        settingsBtn.setAttribute('aria-expanded', 'false');
-        settingsBtn.focus();
-      }
-
-      return;
-    }
-
-    close();
   }
 
   function handlePageLifecycleExit() {
@@ -1092,20 +993,12 @@
       bionicLabel.textContent = 'Bionic Reading';
       bionicToggle.appendChild(bionicLabel);
 
-      // Settings button
-      const settingsButton = document.createElement('button');
-      settingsButton.type = 'button';
-      settingsButton.className = 'ff-close ff-settings-btn';
-      settingsButton.textContent = 'Settings';
-      settingsButton.setAttribute('aria-expanded', 'false');
-
       const controlBar = document.createElement('div');
       controlBar.className = 'ff-control-bar';
       const barActions = document.createElement('div');
       barActions.className = 'ff-bar-actions';
       barActions.appendChild(bionicToggle);
       barActions.appendChild(rsvpButton);
-      barActions.appendChild(settingsButton);
       barActions.appendChild(closeButton);
 
       const controlMeta = document.createElement('p');
@@ -1116,166 +1009,7 @@
       controlBar.appendChild(barActions);
       bar.appendChild(headingGroup);
       bar.appendChild(controlBar);
-
-      // Settings panel (Issues #27, #28, #29, #30)
-      const settingsPanel = document.createElement('section');
-      settingsPanel.className = 'ff-settings';
-      settingsPanel.hidden = true;
-
-      const settingsGrid = document.createElement('div');
-      settingsGrid.className = 'ff-settings-grid';
-
-      function makeField(labelText, control) {
-        const field = document.createElement('div');
-        field.className = 'ff-settings-field';
-        const label = document.createElement('label');
-        label.className = 'ff-settings-label';
-        label.textContent = labelText;
-        label.appendChild(control);
-        field.appendChild(label);
-        return field;
-      }
-
-      // WPM field
-      const wpmInput = document.createElement('input');
-      wpmInput.type = 'number';
-      wpmInput.className = 'ff-settings-input';
-      wpmInput.min = 120;
-      wpmInput.max = 600;
-      wpmInput.step = 10;
-      wpmInput.value = readerState.preferences.wordsPerMinute;
-      settingsGrid.appendChild(makeField('RSVP Speed (WPM)', wpmInput));
-
-      // Theme field
-      const themeSelect = document.createElement('select');
-      themeSelect.className = 'ff-settings-select';
-      ['light', 'dark'].forEach((val) => {
-        const opt = document.createElement('option');
-        opt.value = val;
-        opt.textContent = val.charAt(0).toUpperCase() + val.slice(1);
-        opt.selected = readerState.preferences.theme === val;
-        themeSelect.appendChild(opt);
-      });
-      settingsGrid.appendChild(makeField('Theme', themeSelect));
-
-      // Resume behavior field
-      const resumeSelect = document.createElement('select');
-      resumeSelect.className = 'ff-settings-select';
-      [['resume', 'Resume from last position'], ['restart', 'Always start from beginning']].forEach(([val, label]) => {
-        const opt = document.createElement('option');
-        opt.value = val;
-        opt.textContent = label;
-        opt.selected = readerState.preferences.rsvpResumeMode === val;
-        resumeSelect.appendChild(opt);
-      });
-      settingsGrid.appendChild(makeField('Resume Behavior', resumeSelect));
-
-      // Auto-start field (checkbox, different layout)
-      const autoStartField = document.createElement('div');
-      autoStartField.className = 'ff-settings-field';
-      const autoStartTopLabel = document.createElement('span');
-      autoStartTopLabel.className = 'ff-settings-label';
-      autoStartTopLabel.textContent = 'Auto-start RSVP';
-      const autoStartRow = document.createElement('label');
-      autoStartRow.className = 'ff-settings-checkbox-row';
-      const autoStartInput = document.createElement('input');
-      autoStartInput.type = 'checkbox';
-      autoStartInput.checked = readerState.preferences.autoStartRsvp;
-      const autoStartSpan = document.createElement('span');
-      autoStartSpan.textContent = 'Start reading automatically';
-      autoStartRow.appendChild(autoStartInput);
-      autoStartRow.appendChild(autoStartSpan);
-      autoStartField.appendChild(autoStartTopLabel);
-      autoStartField.appendChild(autoStartRow);
-      settingsGrid.appendChild(autoStartField);
-
-      settingsPanel.appendChild(settingsGrid);
-
-      // Footer: hint (#30) + feedback link (#29)
-      const settingsFooter = document.createElement('div');
-      settingsFooter.className = 'ff-settings-footer';
-
-      const hint = document.createElement('p');
-      hint.className = 'ff-settings-hint';
-      hint.textContent = 'Some pages may not render perfectly yet (e.g., complex layouts or footnotes).';
-      settingsFooter.appendChild(hint);
-
-      const feedbackLink = document.createElement('a');
-      feedbackLink.className = 'ff-feedback-link';
-      feedbackLink.href = `https://github.com/vectorlane80/focalflow/issues/new?title=Feedback%20on%20FocalFlow&body=${encodeURIComponent(`Page: ${window.location.href}`)}`;
-      feedbackLink.target = '_blank';
-      feedbackLink.rel = 'noopener noreferrer';
-      feedbackLink.textContent = 'Send feedback';
-      settingsFooter.appendChild(feedbackLink);
-
-      settingsPanel.appendChild(settingsFooter);
-      bar.appendChild(settingsPanel);
-
       shell.appendChild(bar);
-
-      // Settings panel toggle
-      settingsButton.addEventListener('click', () => {
-        const isHidden = settingsPanel.hidden;
-        settingsPanel.hidden = !isHidden;
-        settingsButton.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
-
-        if (isHidden) {
-          // Focus first interactive control when opening
-          requestAnimationFrame(() => { wpmInput.focus(); });
-        } else {
-          settingsButton.focus();
-        }
-      });
-
-      // Click-outside to close settings
-      root.addEventListener('click', (event) => {
-        if (!settingsPanel.hidden
-          && !settingsPanel.contains(event.target)
-          && event.target !== settingsButton) {
-          settingsPanel.hidden = true;
-          settingsButton.setAttribute('aria-expanded', 'false');
-        }
-      });
-
-      // WPM change
-      wpmInput.addEventListener('change', () => {
-        const val = Number(wpmInput.value);
-        readerState.preferences = sanitizePreferences({
-          ...readerState.preferences,
-          wordsPerMinute: val
-        });
-        wpmInput.value = readerState.preferences.wordsPerMinute;
-        global.FocalFlowPreferences?.update?.({ wordsPerMinute: readerState.preferences.wordsPerMinute });
-      });
-
-      // Theme change
-      themeSelect.addEventListener('change', () => {
-        const val = themeSelect.value;
-        readerState.preferences = sanitizePreferences({
-          ...readerState.preferences,
-          theme: val
-        });
-        root.dataset.theme = readerState.preferences.theme;
-        global.FocalFlowPreferences?.update?.({ theme: readerState.preferences.theme });
-      });
-
-      // Resume mode change
-      resumeSelect.addEventListener('change', () => {
-        readerState.preferences = sanitizePreferences({
-          ...readerState.preferences,
-          rsvpResumeMode: resumeSelect.value
-        });
-        global.FocalFlowPreferences?.update?.({ rsvpResumeMode: readerState.preferences.rsvpResumeMode });
-      });
-
-      // Auto-start change
-      autoStartInput.addEventListener('change', () => {
-        readerState.preferences = sanitizePreferences({
-          ...readerState.preferences,
-          autoStartRsvp: autoStartInput.checked
-        });
-        global.FocalFlowPreferences?.update?.({ autoStartRsvp: readerState.preferences.autoStartRsvp });
-      });
 
       rsvpButton.addEventListener('click', () => {
         setMode(root, shell, article, readerState, 'rsvp');
