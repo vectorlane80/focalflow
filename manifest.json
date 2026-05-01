@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FocalFlow",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Extraction-first reader mode groundwork for distraction-free article reading.",
   "permissions": ["activeTab", "scripting", "storage"],
   "action": {

@@ -542,6 +542,95 @@ test('isLowConfidence treats exactly-threshold word counts as confident', () => 
   );
 });
 
+test('estimatePageProseWordCount sums <p> words and skips non-article ancestors (#32)', () => {
+  const { estimatePageProseWordCount } = loadExtractor().__testing;
+  const { JSDOM } = require('jsdom');
+  // Body has 5 words of real prose, 4 in nav, 6 in a comments aside,
+  // 3 in a sidebar div. Estimator should return only the 5 real words.
+  const dom = new JSDOM(`
+    <body>
+      <header><p>Site title and tagline goes here</p></header>
+      <nav><p>Home About Contact</p></nav>
+      <main>
+        <article>
+          <p>One two three four five</p>
+        </article>
+      </main>
+      <aside class="comments"><p>Reader comment one two three four five six</p></aside>
+      <div id="related-articles"><p>Related one two three</p></div>
+      <footer><p>Footer copyright text</p></footer>
+    </body>
+  `);
+  assert.equal(estimatePageProseWordCount(dom.window.document), 5);
+});
+
+test('isMateriallyIncomplete fires when extracted is much smaller than visible prose (#32)', () => {
+  const { isMateriallyIncomplete, COMPLETENESS_MIN_PAGE_PROSE } = loadExtractor().__testing;
+  const { JSDOM } = require('jsdom');
+  // Build a body with COMPLETENESS_MIN_PAGE_PROSE * 2 words of real prose.
+  const proseWords = 'word '.repeat(COMPLETENESS_MIN_PAGE_PROSE * 2).trim();
+  const dom = new JSDOM(`<body><article><p>${proseWords}</p></article></body>`);
+  // Pretend extractor only got 50 words (well below 0.5 ratio).
+  const article = { wordCount: 50, blocks: [{ type: 'paragraph', text: 'foo' }], textContent: 'foo' };
+  assert.equal(isMateriallyIncomplete(article, dom.window.document), true);
+});
+
+test('isMateriallyIncomplete does not fire when extracted is close to visible prose', () => {
+  const { isMateriallyIncomplete, COMPLETENESS_MIN_PAGE_PROSE } = loadExtractor().__testing;
+  const { JSDOM } = require('jsdom');
+  const proseWords = 'word '.repeat(COMPLETENESS_MIN_PAGE_PROSE * 2).trim();
+  const dom = new JSDOM(`<body><article><p>${proseWords}</p></article></body>`);
+  // Extracted matches the full prose count.
+  const article = { wordCount: COMPLETENESS_MIN_PAGE_PROSE * 2, blocks: [{ type: 'paragraph', text: 'foo' }], textContent: 'foo' };
+  assert.equal(isMateriallyIncomplete(article, dom.window.document), false);
+});
+
+test('isMateriallyIncomplete returns false when there is not enough page-prose signal', () => {
+  // If the page has very little prose, ratios are noisy — skip the check.
+  const { isMateriallyIncomplete } = loadExtractor().__testing;
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM('<body><p>only ten words here ' + 'word '.repeat(5).trim() + '</p></body>');
+  const article = { wordCount: 10, blocks: [{ type: 'paragraph', text: 'foo' }], textContent: 'foo' };
+  assert.equal(isMateriallyIncomplete(article, dom.window.document), false);
+});
+
+test('isMateriallyIncomplete returns false on null inputs', () => {
+  const { isMateriallyIncomplete } = loadExtractor().__testing;
+  assert.equal(isMateriallyIncomplete(null, null), false);
+  assert.equal(isMateriallyIncomplete(null, {}), false);
+  assert.equal(isMateriallyIncomplete({}, null), false);
+});
+
+test('isMateriallyIncomplete does not trigger at exactly the ratio threshold', () => {
+  // Pin the comparator: check is `<`, so extracted == 0.5 × estimated
+  // must NOT flag. A future flip to `<=` would slip through.
+  const { isMateriallyIncomplete, COMPLETENESS_RATIO_THRESHOLD, COMPLETENESS_MIN_PAGE_PROSE } = loadExtractor().__testing;
+  const { JSDOM } = require('jsdom');
+  const proseLen = COMPLETENESS_MIN_PAGE_PROSE * 2; // 400 words of estimable prose
+  const dom = new JSDOM(`<body><article><p>${'word '.repeat(proseLen).trim()}</p></article></body>`);
+  const article = {
+    wordCount: Math.round(proseLen * COMPLETENESS_RATIO_THRESHOLD), // exactly 0.5
+    blocks: [{ type: 'paragraph', text: 'foo' }],
+    textContent: 'foo'
+  };
+  assert.equal(isMateriallyIncomplete(article, dom.window.document), false);
+});
+
+test('isMateriallyIncomplete applies the check at exactly the min-prose signal floor', () => {
+  // Pin the comparator: check is `< MIN`, so estimated == MIN must
+  // run the ratio check (not skip). Extracted is far below half so
+  // the result here verifies the gate didn't no-op us into success.
+  const { isMateriallyIncomplete, COMPLETENESS_MIN_PAGE_PROSE } = loadExtractor().__testing;
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM(`<body><article><p>${'word '.repeat(COMPLETENESS_MIN_PAGE_PROSE).trim()}</p></article></body>`);
+  const article = {
+    wordCount: 10, // 10/200 = 0.05, well below 0.5
+    blocks: [{ type: 'paragraph', text: 'foo' }],
+    textContent: 'foo'
+  };
+  assert.equal(isMateriallyIncomplete(article, dom.window.document), true);
+});
+
 test('cleanFootnotes handles inline-form section (single block contains "Notes [1] ...")', () => {
   const { cleanFootnotes } = loadExtractor().__testing;
   const blocks = [

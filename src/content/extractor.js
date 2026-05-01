@@ -697,6 +697,72 @@
     return false;
   }
 
+  // Materially-incomplete detection. Some pages cause Readability to
+  // pick a container that holds only part of the article (lede block,
+  // a single section, etc.). To catch this without running the full
+  // extractor twice, compare the extracted word count to a cheap
+  // estimate of visible article prose: sum the word counts of <p>
+  // elements that aren't inside a non-article ancestor (header/footer/
+  // nav/aside/form) or a container with a "comments / sidebar / ads /
+  // related" class or id hint. If the estimator has enough signal
+  // (>= 200 words) and the extracted ratio drops below 0.5, the
+  // extraction is likely incomplete and we route to the failure state.
+  const COMPLETENESS_MIN_PAGE_PROSE = 200;
+  const COMPLETENESS_RATIO_THRESHOLD = 0.5;
+  const NON_ARTICLE_ANCESTOR_TAGS = new Set([
+    'HEADER', 'FOOTER', 'NAV', 'ASIDE', 'FORM'
+  ]);
+  const NON_ARTICLE_CONTAINER_HINT_PATTERN =
+    /(?:^|[\s_-])(?:comment|comments|reply|replies|sidebar|side-bar|menu|advert|ads|promo|related|recommend|recommended|footer|header|nav|share|social|newsletter|subscribe|popup|modal)(?:[\s_-]|$)/i;
+
+  function isInsideNonArticleContainer(node) {
+    let cur = node && node.parentElement;
+    while (cur) {
+      if (NON_ARTICLE_ANCESTOR_TAGS.has(cur.tagName)) {
+        return true;
+      }
+      const tokens = `${cur.className || ''} ${cur.id || ''}`;
+      if (tokens && NON_ARTICLE_CONTAINER_HINT_PATTERN.test(tokens)) {
+        return true;
+      }
+      cur = cur.parentElement;
+    }
+    return false;
+  }
+
+  function estimatePageProseWordCount(sourceDocument) {
+    if (!sourceDocument || typeof sourceDocument.querySelectorAll !== 'function') {
+      return 0;
+    }
+    const paragraphs = sourceDocument.querySelectorAll('p');
+    let total = 0;
+    for (const p of paragraphs) {
+      if (isInsideNonArticleContainer(p)) {
+        continue;
+      }
+      total += countWords(p.textContent || '');
+    }
+    return total;
+  }
+
+  function isMateriallyIncomplete(article, sourceDocument) {
+    if (!article || !sourceDocument) {
+      return false;
+    }
+    const extracted = Number(article.wordCount);
+    if (!Number.isFinite(extracted) || extracted <= 0) {
+      // Fully-empty extractions are caught upstream by isLowConfidence.
+      return false;
+    }
+    const estimated = estimatePageProseWordCount(sourceDocument);
+    if (estimated < COMPLETENESS_MIN_PAGE_PROSE) {
+      // Not enough signal — short pages or pages that don't use <p>.
+      return false;
+    }
+    const ratio = extracted / estimated;
+    return ratio < COMPLETENESS_RATIO_THRESHOLD;
+  }
+
   function isReadabilityResultWeak(article) {
     if (!article || !article.textContent || !article.content) {
       return true;
@@ -727,6 +793,8 @@
 
   global.FocalFlowExtractor = {
     isLowConfidence,
+    isMateriallyIncomplete,
+    estimatePageProseWordCount,
     LOW_CONFIDENCE_WORD_THRESHOLD,
     extract(sourceDocument) {
       if (typeof Readability !== 'function') {
@@ -780,6 +848,11 @@
       hasBlockDescendant,
       isLowConfidence,
       LOW_CONFIDENCE_WORD_THRESHOLD,
+      isMateriallyIncomplete,
+      estimatePageProseWordCount,
+      isInsideNonArticleContainer,
+      COMPLETENESS_MIN_PAGE_PROSE,
+      COMPLETENESS_RATIO_THRESHOLD,
       scoreCandidate,
       matchesFallbackClassOrId,
       isReadabilityResultWeak,

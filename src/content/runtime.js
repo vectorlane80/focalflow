@@ -112,6 +112,24 @@
         return;
       }
 
+      if (global.FocalFlowExtractor.isMateriallyIncomplete(article, document)) {
+        // Extraction succeeded but appears to be a partial container
+        // (e.g., NYT lede block where the body is much larger). Surface
+        // this rather than presenting incomplete content as successful.
+        const estimated = global.FocalFlowExtractor.estimatePageProseWordCount(document);
+        console.warn('FocalFlow: extraction appears materially incomplete', {
+          extractedWordCount: article.wordCount,
+          estimatedPageProseWordCount: estimated,
+          ratio: estimated > 0 ? article.wordCount / estimated : 0
+        });
+        openFailure('incomplete');
+        sendResponse({
+          ok: false,
+          error: 'Extraction appears materially incomplete.'
+        });
+        return;
+      }
+
       logExtractionDebug(article);
       global.FocalFlowReaderShell.open(article, {
         preferences: message.preferences,
